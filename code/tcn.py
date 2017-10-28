@@ -3,7 +3,10 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
-from torch.autograd import Variable
+from torch import optim
+from torch.autograd import Variable, Function
+from torch.utils.data import DataLoader
+from torch.utils.data.sampler import RandomSampler
 from util import VideoTripletDataset
 
 class BatchNormConv2d(nn.Module):
@@ -44,7 +47,6 @@ class TCNModel(nn.Module):
         self.FullyConnected7a = Dense(31 * 31 * 20, 1000)
         self.FullyConnected7b = Dense(1000, 128)
 
-
     def forward(self, x):
         if self.transform_input:
             x = x.clone()
@@ -78,19 +80,62 @@ class TCNModel(nn.Module):
         # 31 x 31 x 20
         x = self.SpatialSoftmax(x)
         # 1000
-        x = self.FullyConnected7a(x.view(-1))
+        x = self.FullyConnected7a(x.view(x.size()[0], -1))
         # 128
         x = self.FullyConnected7b(x)
 
         return x
 
+def distance(x1, x2):
+    assert(x1.size() == x2.size())
+    diff = torch.abs(x1 - x2)
+    return torch.pow(diff, 2).sum(dim=1)
+
+def define_model(use_cuda):
+    tcn = TCNModel(models.inception_v3(pretrained=True))
+    if use_cuda:
+        tcn.use_cuda()
+    return tcn
 
 def main():
-    tcn = TCNModel(models.inception_v3(pretrained=True))
-    x = Variable(torch.Tensor(np.random.randn(1, 3, 299, 299)))
-    y = tcn(x)
+    use_cuda = torch.cuda.is_available()
+
+    tcn = define_model(use_cuda)
+
     dataset = VideoTripletDataset('./data/')
-    import ipdb; ipdb.set_trace()
+    data_loader = DataLoader(
+        dataset=dataset,
+        batch_size=1,
+        shuffle=False
+    )
+
+    margin = 0.5
+
+    optimizer = optim.SGD(tcn.parameters(), lr=1e-3, momentum=0.9)
+
+    for minibatch in data_loader:
+        frames = Variable(minibatch)
+
+        if use_cuda:
+            frames = frames.cuda()
+
+        positive_frames = frames[:, 0, :, :, :]
+        anchor_frames = frames[:, 1, :, :, :]
+        negative_frames = frames[:, 2, :, :, :]
+
+        positive_output = tcn(positive_frames)
+        anchor_output = tcn(anchor_frames)
+        negative_output = tcn(negative_frames)
+
+        loss = distance(anchor_output, positive_output) - (
+            distance(anchor_output, negative_output)
+        ) + margin
+
+        loss = torch.sum(loss)
+
+        loss.backward()
+        optimizer.step()
+        print('loss: ', loss.data[0])
 
 
 if __name__ == '__main__':
