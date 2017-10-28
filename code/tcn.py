@@ -94,7 +94,7 @@ def distance(x1, x2):
 def define_model(use_cuda):
     tcn = TCNModel(models.inception_v3(pretrained=True))
     if use_cuda:
-        tcn.use_cuda()
+        tcn.cuda()
     return tcn
 
 def main():
