@@ -99,3 +99,22 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# trained models
+/code/trained_models/*
+code/0_VRDemoSettings.txt
+code/.DS_Store
+
+.DS_Store
+# visdom
+visdom
+# utils png
+/code/utils/*.png
+# tmp
+code/tmp/*
+
+# pytorch
+/code/pytorch
+/code/pytorch-a2c-ppo-acktr/tmp/*
+/code/pytorch-a2c-ppo-acktr/imgs/*
+/code/pytorch-a2c-ppo-acktr/trained_models/*

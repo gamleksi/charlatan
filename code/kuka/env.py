@@ -7,6 +7,7 @@ from pybullet_envs.bullet import kuka
 from gym import spaces
 import pybullet_data
 
+
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
@@ -53,9 +54,13 @@ class KukaPoseEnv(KukaGymEnv):
             joint_lower_limit[joint_index] = joint_info[8]
             joint_upper_limit[joint_index] = joint_info[9]
 
-        self.observation_space = spaces.Box(
+        self.goal_space = spaces.Box(
             low=joint_lower_limit,
             high=joint_upper_limit)
+        
+        self.observation_space = spaces.Box(
+            low=np.concatenate((joint_lower_limit, joint_lower_limit)),
+            high=np.concatenate((joint_upper_limit, joint_upper_limit)))
 
     def _reset(self):
         self.terminated = 0
@@ -71,8 +76,8 @@ class KukaPoseEnv(KukaGymEnv):
         self._observation = self.getExtendedObservation()
 
         # Sample a new random goal pose
-        self.goal = self.observation_space.sample()
-        return np.array(self._observation)
+        self.goal = self.getNewGoal()
+        return np.concatenate((self._observation, self.goal))
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
@@ -91,10 +96,14 @@ class KukaPoseEnv(KukaGymEnv):
                 break
             self._envStepCounter += 1
         reward = self._reward()
-        return np.array(self._observation), reward, done, {}
+        return np.concatenate((self._observation, self.goal)), reward, done, {}
 
     def _reward(self):
         return -np.linalg.norm(np.abs(self._observation - self.goal), 2)
+
+    def getNewGoal(self):
+        goal = self.goal_space.sample()
+        return np.array(goal)
 
     def getExtendedObservation(self):
         joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
