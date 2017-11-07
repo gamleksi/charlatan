@@ -12,14 +12,11 @@ def get_args():
     parser.add_argument('--save-name', default='learning')
     return parser.parse_args()
 
-import ipdb
-
-
 args = get_args()
 
 fig, axes = plt.subplots(args.num_files, 1, figsize=(9, 9))
 
-for index in range(0, args.num_files): 
+for index in range(0, args.num_files):
     monitor = genfromtxt("{}{}{}".format(args.dir, index, args.file_name), delimiter=',')
     monitor =  monitor[1:,0]
     iterations = monitor.shape[0]
@@ -29,7 +26,7 @@ for index in range(0, args.num_files):
         arr.append(monitor[i * args.num_mean: (i+1) * args.num_mean].mean())
         i += 1
 
-    if(args.num_files == 1): 
+    if(args.num_files == 1):
         ax = axes
     else:
         ax = axes[index]

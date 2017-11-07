@@ -114,7 +114,6 @@ visdom
 code/tmp/*
 
 # pytorch
-/code/pytorch
 /code/pytorch-a2c-ppo-acktr/tmp/*
 /code/pytorch-a2c-ppo-acktr/imgs/*
 /code/pytorch-a2c-ppo-acktr/trained_models/*
