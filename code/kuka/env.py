@@ -7,11 +7,10 @@ from pybullet_envs.bullet import kuka
 from gym import spaces
 import pybullet_data
 
-
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
-            isEnableSelfCollision=True, renders=True):
+            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None):
         self._timeStep = 1./240.
         self._urdfRoot = urdfRoot
         self._actionRepeat = actionRepeat
@@ -23,10 +22,12 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_rendering()
         self._setup_kuka()
         self._setup_spaces()
-
+        self._goalReset = goalReset
         self._seed()
         self.reset()
         self.viewer = None
+        if goal:
+            self.goal = np.array(goal)
 
     def _setup_rendering(self):
         if self._renders:
@@ -75,9 +76,10 @@ class KukaPoseEnv(KukaGymEnv):
         bullet.stepSimulation()
         self._observation = self.getExtendedObservation()
 
-        # Sample a new random goal pose
-        self.goal = self.getNewGoal()
-        return np.concatenate((self._observation, self.goal))
+        # Sample a new random goal pose 
+        if not(hasattr(self, 'goal')) or self._goalReset:
+            self.goal = self.getNewGoal()
+        return self.buildObservation()
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
@@ -96,7 +98,10 @@ class KukaPoseEnv(KukaGymEnv):
                 break
             self._envStepCounter += 1
         reward = self._reward()
-        return np.concatenate((self._observation, self.goal)), reward, done, {}
+        return self.buildObservation(), reward, done, {}
+
+    def buildObservation(self):
+        return np.concatenate((self._observation, self.goal))
 
     def _reward(self):
         return -np.linalg.norm(np.abs(self._observation - self.goal), 2)
