@@ -23,11 +23,10 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_kuka()
         self._setup_spaces()
         self._goalReset = goalReset
+        self.goal = np.array(goal) if goal is None else self.getNewGoal()  
         self._seed()
         self.reset()
         self.viewer = None
-        if goal:
-            self.goal = np.array(goal)
 
     def _setup_rendering(self):
         if self._renders:
@@ -77,7 +76,7 @@ class KukaPoseEnv(KukaGymEnv):
         self._observation = self.getExtendedObservation()
 
         # Sample a new random goal pose 
-        if not(hasattr(self, 'goal')) or self._goalReset:
+        if self._goalReset:
             self.goal = self.getNewGoal()
         return self.buildObservation()
 
@@ -115,4 +114,3 @@ class KukaPoseEnv(KukaGymEnv):
         # The first item in the joint state is the joint position.
         joint_positions = [jointState[0] for jointState in joint_states]
         return np.array(joint_positions)
-
