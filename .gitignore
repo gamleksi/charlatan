@@ -108,12 +108,20 @@ code/.DS_Store
 .DS_Store
 # visdom
 visdom
-# utils png
+# utils
 /code/utils/*.png
+/code/utils/*.jpg
+/code/utils/whitespace/*
+/code/utils/whitespace_1/*
+/code/utils/whitespace_2/*
+/code/utils/brainfuck_2/*
+
 # tmp
 code/tmp/*
+/code/experiments.csv
 
 # pytorch
 /code/pytorch-a2c-ppo-acktr/tmp/*
 /code/pytorch-a2c-ppo-acktr/imgs/*
 /code/pytorch-a2c-ppo-acktr/trained_models/*
+

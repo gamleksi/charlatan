@@ -1,3 +1,6 @@
 pybullet
 gym
 numpy
+torch
+
+# brew install ffmpeg
