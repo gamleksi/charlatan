@@ -125,3 +125,5 @@ code/tmp/*
 /code/pytorch-a2c-ppo-acktr/imgs/*
 /code/pytorch-a2c-ppo-acktr/trained_models/*
 
+code/data
+
