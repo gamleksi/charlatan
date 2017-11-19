@@ -10,7 +10,7 @@ import pybullet_data
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
-            isEnableSelfCollision=True, renders=True):
+            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None):
         self._timeStep = 1./240.
         self._urdfRoot = urdfRoot
         self._actionRepeat = actionRepeat
@@ -22,7 +22,8 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_rendering()
         self._setup_kuka()
         self._setup_spaces()
-
+        self._goalReset = goalReset
+        self.goal = np.array(goal) if goal is None else self.getNewGoal()  
         self._seed()
         self.reset()
         self.viewer = None
@@ -53,9 +54,13 @@ class KukaPoseEnv(KukaGymEnv):
             joint_lower_limit[joint_index] = joint_info[8]
             joint_upper_limit[joint_index] = joint_info[9]
 
-        self.observation_space = spaces.Box(
+        self.goal_space = spaces.Box(
             low=joint_lower_limit,
             high=joint_upper_limit)
+        
+        self.observation_space = spaces.Box(
+            low=np.concatenate((joint_lower_limit, joint_lower_limit)),
+            high=np.concatenate((joint_upper_limit, joint_upper_limit)))
 
     def _reset(self):
         self.terminated = 0
@@ -70,9 +75,10 @@ class KukaPoseEnv(KukaGymEnv):
         bullet.stepSimulation()
         self._observation = self.getExtendedObservation()
 
-        # Sample a new random goal pose
-        self.goal = self.observation_space.sample()
-        return np.array(self._observation)
+        # Sample a new random goal pose 
+        if self._goalReset:
+            self.goal = self.getNewGoal()
+        return self.buildObservation()
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
@@ -91,14 +97,20 @@ class KukaPoseEnv(KukaGymEnv):
                 break
             self._envStepCounter += 1
         reward = self._reward()
-        return np.array(self._observation), reward, done, {}
+        return self.buildObservation(), reward, done, {}
+
+    def buildObservation(self):
+        return np.concatenate((self._observation, self.goal))
 
     def _reward(self):
         return -np.linalg.norm(np.abs(self._observation - self.goal), 2)
+
+    def getNewGoal(self):
+        goal = self.goal_space.sample()
+        return np.array(goal)
 
     def getExtendedObservation(self):
         joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
         # The first item in the joint state is the joint position.
         joint_positions = [jointState[0] for jointState in joint_states]
         return np.array(joint_positions)
-
