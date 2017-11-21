@@ -114,7 +114,6 @@ class KukaPoseEnv(KukaGymEnv):
     def _reward(self):
         goal_distance = -np.linalg.norm(np.abs(self._observation - self.goal), 2)
         not_moving =  max(- 1 / np.linalg.norm(np.abs(self._observation - self.joint_history[0]), 2), goal_distance)
-        print(not_moving, goal_distance)
         self.update_joint_history()
         return goal_distance + not_moving
 
