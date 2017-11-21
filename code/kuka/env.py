@@ -24,6 +24,7 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_spaces()
         self._goalReset = goalReset
         self.goal = np.array(goal) if goal is None else self.getNewGoal()  
+        self.joint_history = []
         self._seed()
         self.reset()
         self.viewer = None
@@ -74,6 +75,7 @@ class KukaPoseEnv(KukaGymEnv):
         self._envStepCounter = 0
         bullet.stepSimulation()
         self._observation = self.getExtendedObservation()
+        self.joint_history = [self._observation]
 
         # Sample a new random goal pose 
         if self._goalReset:
@@ -102,8 +104,19 @@ class KukaPoseEnv(KukaGymEnv):
     def buildObservation(self):
         return np.concatenate((self._observation, self.goal))
 
+    def update_joint_history(self):
+        if len(self.joint_history) < 10:
+            self.joint_history.append(self._observation) 
+        else:
+            self.joint_history[:-1] = self.joint_history[1:]
+            self.joint_history[-1] = self._observation
+
     def _reward(self):
-        return -np.linalg.norm(np.abs(self._observation - self.goal), 2)
+        goal_distance = -np.linalg.norm(np.abs(self._observation - self.goal), 2)
+        not_moving =  max(- 1 / np.linalg.norm(np.abs(self._observation - self.joint_history[0]), 2), goal_distance)
+        print(not_moving, goal_distance)
+        self.update_joint_history()
+        return goal_distance + not_moving
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
