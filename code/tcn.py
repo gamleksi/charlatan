@@ -1,13 +1,7 @@
-import numpy as np
-import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
-from torch import optim
-from torch.autograd import Variable, Function
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import RandomSampler
-from util import VideoTripletDataset
+from torch.autograd import Function
 
 class BatchNormConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
@@ -86,57 +80,8 @@ class TCNModel(nn.Module):
 
         return x
 
-def distance(x1, x2):
-    assert(x1.size() == x2.size())
-    diff = torch.abs(x1 - x2)
-    return torch.pow(diff, 2).sum(dim=1)
-
 def define_model(use_cuda):
     tcn = TCNModel(models.inception_v3(pretrained=True))
     if use_cuda:
         tcn.cuda()
     return tcn
-
-def main():
-    use_cuda = torch.cuda.is_available()
-
-    tcn = define_model(use_cuda)
-
-    dataset = VideoTripletDataset('./data/train/')
-    data_loader = DataLoader(
-        dataset=dataset,
-        batch_size=10,
-        shuffle=False
-    )
-
-    margin = 0.5
-
-    optimizer = optim.SGD(tcn.parameters(), lr=1e-3, momentum=0.9)
-
-    for minibatch in data_loader:
-        frames = Variable(minibatch)
-
-        if use_cuda:
-            frames = frames.cuda()
-
-        anchor_frames = frames[:, 0, :, :, :]
-        positive_frames = frames[:, 1, :, :, :]
-        negative_frames = frames[:, 2, :, :, :]
-
-        positive_output = tcn(positive_frames)
-        anchor_output = tcn(anchor_frames)
-        negative_output = tcn(negative_frames)
-
-        loss = distance(anchor_output, positive_output) - (
-            distance(anchor_output, negative_output)
-        ) + margin
-
-        loss = torch.sum(loss)
-
-        loss.backward()
-        optimizer.step()
-        print('loss: ', loss.data[0])
-
-
-if __name__ == '__main__':
-    main()
