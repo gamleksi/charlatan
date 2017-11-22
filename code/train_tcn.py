@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 from torch import optim
@@ -20,18 +21,37 @@ def batch_size(epoch):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--save-every', type=int, default=10)
+    parser.add_argument('--model-folder', type=str, default='./trained_models/tcn/')
+    parser.add_argument('--train-directory', type=str, default='./data/train/')
+    parser.add_argument('--validation-directory', type=str, default='./data/validation/')
     return parser.parse_args()
 
+def ensure_folder(folder):
+    path_fragments = os.path.split(folder)
+    joined = '.'
+    for fragment in path_fragments:
+        joined = os.path.join(joined, fragment)
+        if not os.path.exists(joined):
+            os.mkdir(joined)
+
+def model_filename(epoch):
+    return "tcn-epoch-{0}.pk".format(epoch)
+
+def save_model(model, filename, model_folder):
+    ensure_folder(model_folder)
+    model_path = os.path.join(model_folder, filename)
+    torch.save(model.state_dict(), model_path)
 
 def main():
     use_cuda = torch.cuda.is_available()
 
     tcn = define_model(use_cuda)
 
-    dataset = VideoTripletDataset('./data/train/')
     args = get_args()
+    dataset = VideoTripletDataset(args.train_directory)
 
-    for epoch in range(args.epochs):
+    for epoch in range(1, args.epochs):
         data_loader = DataLoader(
             dataset=dataset,
             batch_size=batch_size(epoch),
@@ -63,6 +83,9 @@ def main():
             loss.backward()
             optimizer.step()
             print('loss: ', loss.data[0])
+
+        if epoch % args.save_every == 0:
+            save_model(tcn, model_filename(epoch), args.model_folder)
 
 
 if __name__ == '__main__':
