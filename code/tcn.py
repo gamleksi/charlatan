@@ -102,10 +102,10 @@ def main():
 
     tcn = define_model(use_cuda)
 
-    dataset = VideoTripletDataset('./data/')
+    dataset = VideoTripletDataset('./data/train/')
     data_loader = DataLoader(
         dataset=dataset,
-        batch_size=1,
+        batch_size=10,
         shuffle=False
     )
 
@@ -119,8 +119,8 @@ def main():
         if use_cuda:
             frames = frames.cuda()
 
-        positive_frames = frames[:, 0, :, :, :]
-        anchor_frames = frames[:, 1, :, :, :]
+        anchor_frames = frames[:, 0, :, :, :]
+        positive_frames = frames[:, 1, :, :, :]
         negative_frames = frames[:, 2, :, :, :]
 
         positive_output = tcn(positive_frames)
