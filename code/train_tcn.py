@@ -8,15 +8,9 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
 from util import VideoTripletDataset
 from tcn import define_model
+from torchvision import transforms
 
-def distance(x1, x2):
-    assert(x1.size() == x2.size())
-    diff = torch.abs(x1 - x2)
-    return torch.pow(diff, 2).sum(dim=1)
-
-def batch_size(epoch):
-    exponent = epoch // 3
-    return min(max(2 ** (exponent), 1), 128)
+MARGIN = 0.5
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -25,7 +19,50 @@ def get_args():
     parser.add_argument('--model-folder', type=str, default='./trained_models/tcn/')
     parser.add_argument('--train-directory', type=str, default='./data/train/')
     parser.add_argument('--validation-directory', type=str, default='./data/validation/')
+    parser.add_argument('--max-minibatch-size', type=int, default=64)
     return parser.parse_args()
+
+def distance(x1, x2):
+    assert(x1.size() == x2.size())
+    diff = torch.abs(x1 - x2)
+    return torch.pow(diff, 2).sum(dim=1)
+
+def batch_size(epoch, max_size):
+    exponent = epoch // 10
+    return min(max(2 ** (exponent), 1), max_size)
+
+transform = transforms.Compose([transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])])
+
+def validate(tcn, use_cuda, arguments):
+    # Run model on validation data and print results
+    dataset = VideoTripletDataset(arguments.validation_directory)
+    data_loader = DataLoader(dataset, batch_size=arguments.max_minibatch_size, shuffle=False)
+
+    num_correct = 0
+    for minibatch in data_loader:
+        minibatch = transform(minibatch)
+        frames = Variable(minibatch, volatile=True)
+
+        if use_cuda:
+            frames = frames.cuda()
+
+        anchor_frames = frames[:, 0, :, :, :]
+        positive_frames = frames[:, 1, :, :, :]
+        negative_frames = frames[:, 2, :, :, :]
+
+        anchor_output = tcn(anchor_frames)
+        positive_output = tcn(positive_frames)
+        negative_output = tcn(negative_frames)
+
+        d_positive = distance(anchor_output, positive_output)
+        d_negative = distance(anchor_output, negative_output)
+
+        assert(d_positive.size()[0] == minibatch.size()[0])
+
+        num_correct += (d_positive + MARGIN < d_negative).data.cpu().numpy().sum()
+
+    print("Validation score correct: {0}/{1}".format(num_correct, len(dataset)))
+
 
 def ensure_folder(folder):
     path_fragments = os.path.split(folder)
@@ -43,24 +80,28 @@ def save_model(model, filename, model_folder):
     model_path = os.path.join(model_folder, filename)
     torch.save(model.state_dict(), model_path)
 
+
 def main():
     use_cuda = torch.cuda.is_available()
 
     tcn = define_model(use_cuda)
 
-    args = get_args()
-    dataset = VideoTripletDataset(args.train_directory)
+    arguments = get_args()
+    dataset = VideoTripletDataset(arguments.train_directory)
 
-    for epoch in range(1, args.epochs):
+    for epoch in range(1, arguments.epochs):
+        print("Starting epoch: {0}".format(epoch))
         data_loader = DataLoader(
             dataset=dataset,
-            batch_size=batch_size(epoch),
-            shuffle=False
+            batch_size=batch_size(epoch, arguments.max_minibatch_size)
         )
+
+        validate(tcn, use_cuda, arguments)
 
         optimizer = optim.SGD(tcn.parameters(), lr=1e-3, momentum=0.9)
 
         for minibatch in data_loader:
+            minibatch = transform(minibatch)
             frames = Variable(minibatch)
 
             if use_cuda:
@@ -70,22 +111,25 @@ def main():
             positive_frames = frames[:, 1, :, :, :]
             negative_frames = frames[:, 2, :, :, :]
 
-            positive_output = tcn(positive_frames)
             anchor_output = tcn(anchor_frames)
+            positive_output = tcn(positive_frames)
             negative_output = tcn(negative_frames)
 
-            loss = distance(anchor_output, positive_output) - (
-                distance(anchor_output, negative_output)
-            )
-
-            loss = torch.sum(loss)
+            d_positive = distance(anchor_output, positive_output)
+            d_negative = distance(anchor_output, negative_output)
+            loss = torch.clamp(MARGIN + d_positive - d_negative, min=0.0).mean()
 
             loss.backward()
             optimizer.step()
-            print('loss: ', loss.data[0])
 
-        if epoch % args.save_every == 0:
-            save_model(tcn, model_filename(epoch), args.model_folder)
+        print('loss: ', loss.data[0])
+
+        if epoch % arguments.save_every == 0:
+            print('Saving model.')
+            save_model(tcn, model_filename(epoch), arguments.model_folder)
+
+
+
 
 
 if __name__ == '__main__':

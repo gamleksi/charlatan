@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
@@ -78,10 +79,18 @@ class TCNModel(nn.Module):
         # 128
         x = self.FullyConnected7b(x)
 
-        return x
+        # Normalize output such that output lives on unit sphere.
+        return self.normalize(x)
 
-def define_model(use_cuda):
-    tcn = TCNModel(models.inception_v3(pretrained=True))
+    def normalize(self, x):
+        buffer = torch.pow(x, 2)
+        normp = torch.sum(buffer, 1).add_(1e-10)
+        normalization_constant = torch.sqrt(normp)
+        output = torch.div(x, normalization_constant.view(-1, 1).expand_as(x))
+        return output.view(x.size())
+
+def define_model(use_cuda, pretrained=True):
+    tcn = TCNModel(models.inception_v3(pretrained=pretrained))
     if use_cuda:
         tcn.cuda()
     return tcn

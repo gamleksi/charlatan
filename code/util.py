@@ -36,12 +36,10 @@ class VideoTripletDataset(Dataset):
         self.frame_size = (299, 299)
         self._read_angle_directories(video_directory)
 
-        # Note: Corresponding videos must have same frame count.
         self._count_frames()
         # The negative example has to be from outside the buffer window. Taken from both sides of
         # the frame.
-        self.positive_frame_margin = 24
-        self.multiple = 5
+        self.positive_frame_margin = 50
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
@@ -52,13 +50,13 @@ class VideoTripletDataset(Dataset):
         self.video_count = len(self.angle1_paths)
 
     def _count_frames(self):
-        self.frame_lengths = np.array([len(imageio.read(p)) for p in self.angle1_paths])
-        self.cumulative_lengths = np.zeros(len(self.frame_lengths))
+        frame_lengths1 = np.array([len(imageio.read(p)) for p in self.angle1_paths])
+        frame_lengths2 = np.array([len(imageio.read(p)) for p in self.angle2_paths])
+        self.frame_lengths = np.minimum(frame_lengths1, frame_lengths2)
+        self.cumulative_lengths = np.zeros(len(self.frame_lengths), dtype=np.int32)
+        prev = 0
         for i, frames in enumerate(self.frame_lengths):
-            if i == 0:
-                prev = 0
-            else:
-                prev = self.frame_lengths[i-1]
+            prev = self.cumulative_lengths[i-1]
             self.cumulative_lengths[i] = prev + frames
 
     @functools.lru_cache(maxsize=3)
@@ -68,12 +66,10 @@ class VideoTripletDataset(Dataset):
         return snap1, snap2
 
     def __len__(self):
-        # Technically we could construct almost n * n * n triplets where n is the
-        # amount of frames we have. The multiple is a somewhat arbitrary setting.
-        return sum(self.frame_lengths) * self.multiple
+        return sum(self.frame_lengths)
 
     def __getitem__(self, index):
-        index = index % (len(self) // self.multiple)
+        index = index
         video_index = self._video_index(index)
         angle1_video, angle2_video = self.get_video(video_index)
 
@@ -98,7 +94,7 @@ class VideoTripletDataset(Dataset):
 
     def _video_index(self, index):
         for i in range(self.video_count):
-            if index < self.cumulative_lengths[i]:
+            if index <= self.cumulative_lengths[i]:
                 return i
 
     def _positive_frame_index(self, index, video_index):
@@ -106,7 +102,7 @@ class VideoTripletDataset(Dataset):
             frames_before_video = 0
         else:
             frames_before_video = self.cumulative_lengths[video_index-1]
-        return index - frames_before_video
+        return index - frames_before_video - 1
 
     def _sample_negative_frame_index(self, video, positive_index):
         frames = len(video)
@@ -117,3 +113,4 @@ class VideoTripletDataset(Dataset):
 
     def _read_frame(self, video, frame_index):
         return video[frame_index]
+
