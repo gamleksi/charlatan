@@ -16,13 +16,16 @@ class BatchNormConv2d(nn.Module):
         return F.relu(x, inplace=True)
 
 class Dense(nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, activation=None):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
+        self.activation = activation
 
     def forward(self, x):
         x = self.linear(x)
-        return F.relu(x, inplace=True)
+        if self.activation:
+            x = self.activation(x, inplace=True)
+        return x
 
 class TCNModel(nn.Module):
     def __init__(self, inception):
@@ -39,8 +42,10 @@ class TCNModel(nn.Module):
         self.Conv2d_6a_3x3 = BatchNormConv2d(288, 100, kernel_size=3, stride=1)
         self.Conv2d_6b_3x3 = BatchNormConv2d(100, 20, kernel_size=3, stride=1)
         self.SpatialSoftmax = nn.Softmax2d()
-        self.FullyConnected7a = Dense(31 * 31 * 20, 1000)
+        self.FullyConnected7a = Dense(31 * 31 * 20, 1000, activation=F.relu)
         self.FullyConnected7b = Dense(1000, 128)
+
+        self.alpha = 10.0
 
     def forward(self, x):
         if self.transform_input:
@@ -80,7 +85,8 @@ class TCNModel(nn.Module):
         x = self.FullyConnected7b(x)
 
         # Normalize output such that output lives on unit sphere.
-        return self.normalize(x)
+        # Multiply by alpha as in https://arxiv.org/pdf/1703.09507.pdf
+        return self.normalize(x) * self.alpha
 
     def normalize(self, x):
         buffer = torch.pow(x, 2)

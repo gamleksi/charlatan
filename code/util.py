@@ -4,6 +4,13 @@ import imageio
 import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import RandomCrop
+
+def view_image(frame):
+    # For debugging. Shows the image
+    # Input shape (3, 299, 299) float32
+    img = Image.fromarray(np.transpose(frame * 255, [1, 2, 0]).astype(np.uint8))
+    img.show()
 
 def _resize_frame(frame, out_size):
     image = Image.fromarray(frame)

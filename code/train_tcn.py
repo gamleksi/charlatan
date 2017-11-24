@@ -12,6 +12,12 @@ from torchvision import transforms
 
 MARGIN = 0.5
 
+# Measured on validation set
+color_means = [0.7274369 , 0.75985962, 0.83737165]
+color_std = [0.01760677,  0.01127113, 0.00469666]
+
+normalize = transforms.Normalize(color_means, color_std)
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs', type=int, default=100)
@@ -31,16 +37,17 @@ def batch_size(epoch, max_size):
     exponent = epoch // 10
     return min(max(2 ** (exponent), 1), max_size)
 
-transform = transforms.Compose([transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])])
-
 def validate(tcn, use_cuda, arguments):
     # Run model on validation data and print results
     dataset = VideoTripletDataset(arguments.validation_directory)
     data_loader = DataLoader(dataset, batch_size=arguments.max_minibatch_size, shuffle=False)
 
+    means = []
+    stds = []
+
     num_correct = 0
     for minibatch in data_loader:
-        minibatch = transform(minibatch)
+        minibatch = normalize(minibatch)
         frames = Variable(minibatch, volatile=True)
 
         if use_cuda:
@@ -59,7 +66,7 @@ def validate(tcn, use_cuda, arguments):
 
         assert(d_positive.size()[0] == minibatch.size()[0])
 
-        num_correct += (d_positive + MARGIN < d_negative).data.cpu().numpy().sum()
+        num_correct += (d_positive < d_negative).data.cpu().numpy().sum()
 
     print("Validation score correct: {0}/{1}".format(num_correct, len(dataset)))
 
@@ -96,12 +103,13 @@ def main():
             batch_size=batch_size(epoch, arguments.max_minibatch_size)
         )
 
-        validate(tcn, use_cuda, arguments)
+        if epoch % 10 == 0:
+            validate(tcn, use_cuda, arguments)
 
         optimizer = optim.SGD(tcn.parameters(), lr=1e-3, momentum=0.9)
 
         for minibatch in data_loader:
-            minibatch = transform(minibatch)
+            minibatch = normalize(minibatch)
             frames = Variable(minibatch)
 
             if use_cuda:
