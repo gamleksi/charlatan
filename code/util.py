@@ -11,10 +11,8 @@ from torch.autograd import Variable
 import logging
 
 def distance(x1, x2):
-    assert(x1.size() == x2.size())
     diff = torch.abs(x1 - x2)
     return torch.pow(diff, 2).sum(dim=1)
-
 
 def view_image(frame):
     # For debugging. Shows the image
@@ -58,8 +56,6 @@ class TripletBuilder(object):
         # the frame.
         self.positive_frame_margin = 50
         self.video_index = 0
-        self.set_size = 2 ** 12
-        self.labels = np.zeros(self.set_size)
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
@@ -79,21 +75,27 @@ class TripletBuilder(object):
             prev = self.cumulative_lengths[i-1]
             self.cumulative_lengths[i] = prev + frames
 
-    @functools.lru_cache(maxsize=3)
+    @functools.lru_cache(maxsize=1)
     def get_video(self, index):
         snap1 = read_video(self.angle1_paths[index], self.frame_size)
         snap2 = read_video(self.angle2_paths[index], self.frame_size)
         return snap1, snap2
 
     def build_set(self, tcn):
-        tensors = np.zeros((self.set_size, 3, 3, *self.frame_size), dtype=np.float32)
-        for i in range(self.set_size):
+        triplets = []
+        for i in range(5):
             snap1, snap2 = self.get_video(self.video_index)
-            anchor_frame, positive_frame, negative_frame = self.sample_frames(tcn, snap1, snap2)
-            tensors[i, :] = np.stack([anchor_frame, positive_frame, negative_frame])
+            anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap1, snap2)
 
-        self.video_index += 1 % self.video_count
-        return TensorDataset(tensors, self.labels)
+            triplet_count = anchor_frames.size()[0]
+            triplet = torch.zeros(triplet_count, 3, 3, *self.frame_size)
+            triplet[:, 0, :, :, :] = anchor_frames
+            triplet[:, 1, :, :, :] = positive_frames
+            triplet[:, 2, :, :, :] = negative_frames
+            triplets.append(triplet)
+            self.video_index = (self.video_index + 1) % self.video_count
+        tensors = torch.cat(triplets, dim=0)
+        return TensorDataset(tensors, torch.zeros(tensors.size()[0]))
 
     def negative_frame_indices(self, positive_index, video_length):
         frame_range = np.arange(max(0, positive_index - self.positive_frame_margin),
@@ -103,28 +105,38 @@ class TripletBuilder(object):
     def sample_frames(self, tcn, snap1, snap2):
         use_cuda = torch.cuda.is_available()
         positive_index = np.random.choice(np.arange(0, self.frame_lengths[self.video_index]))
-        anchor_frame = snap1[positive_index]
-        positive_frame = snap2[positive_index]
+        anchor_frame = Tensor(snap1[positive_index])
+        positive_frame = Tensor(snap2[positive_index])
         negative_video = snap1 if np.random.rand() < 0.5 else snap2
-        negative_video = Variable(Tensor(snap2), volatile=True)
+        negative_video = Tensor(negative_video)
+
+        negative_frame_indices = self.negative_frame_indices(positive_index, len(negative_video))
+        np.random.shuffle(negative_frame_indices)
         if use_cuda:
-            negative_video.cuda()
-
-        arange = np.arange(0, len(negative_video))
-        np.random.shuffle(arange)
-        negative_frame = None
-        for i in arange:
-            frame = negative_video[i]
-            outputs = tcn(torch.stack([anchor_frame, positive_frame, frame]))
-            p_dist = distance(outputs[0], outputs[1])
-            n_dist = distance(outputs[0], outputs[2])
-            if p_dist < n_dist:
-                negative_frame = frame
-                break
-
-        if negative_frame is None:
-            raise ValueError("no negative frame was suitable")
-        return anchor_frame, positive_frame, negative_frame
+            anchor_frame = anchor_frame.cuda()
+            positive_frame = positive_frame.cuda()
+            negative_video = negative_video.cuda()
+        anchor_output = tcn(Variable(
+            torch.unsqueeze(anchor_frame, dim=0),
+            volatile=True))
+        positive_output = tcn(Variable(
+            torch.unsqueeze(positive_frame, dim=0),
+            volatile=True))
+        video_output = tcn(Variable(negative_video, volatile=True))
+        positive_distances = distance(anchor_output, positive_output)
+        negative_distances = distance(anchor_output, video_output)
+        diff = (positive_distances < negative_distances).data.cpu().numpy()
+        indices = np.where(diff == 1)[0]
+        if indices.size == 0:
+            indices = np.random.choice(negative_frame_indices, size=50)
+        indices = torch.LongTensor(indices)
+        if use_cuda:
+            indices = indices.cuda()
+        negative_frames = torch.index_select(negative_video, 0, indices)
+        dim0size = negative_frames.size()[0]
+        anchor_frame = anchor_frame.repeat(dim0size, 1, 1, 1)
+        positive_frame = positive_frame.repeat(dim0size, 1, 1, 1)
+        return anchor_frame, positive_frame, negative_frames
 
     def get_frame(self, video, index):
         return video[index]

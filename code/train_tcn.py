@@ -44,9 +44,6 @@ def validate(tcn, use_cuda, arguments):
     dataset = VideoTripletDataset(arguments.validation_directory, IMAGE_SIZE)
     data_loader = DataLoader(dataset, batch_size=arguments.max_minibatch_size, shuffle=False, num_workers=2)
 
-    means = []
-    stds = []
-
     num_correct = 0
     for minibatch in data_loader:
         minibatch = normalize(minibatch)
@@ -89,7 +86,6 @@ def save_model(model, filename, model_folder):
     model_path = os.path.join(model_folder, filename)
     torch.save(model.state_dict(), model_path)
 
-
 def main():
     use_cuda = torch.cuda.is_available()
 
@@ -98,22 +94,24 @@ def main():
     if use_cuda:
         tcn.cuda()
 
-    dataset = VideoTripletDataset(arguments.train_directory, IMAGE_SIZE)
+    triplet_builder = TripletBuilder(arguments.train_directory, IMAGE_SIZE)
 
     optimizer = optim.SGD(tcn.parameters(), lr=arguments.lr_start, momentum=0.9)
 
     for epoch in range(1, arguments.epochs):
         logger.info("Starting epoch: {0}".format(epoch))
+        dataset = triplet_builder.build_set(tcn)
+        logger.info("Created {0} triplets".format(len(dataset)))
         data_loader = DataLoader(
             dataset=dataset,
             batch_size=batch_size(epoch, arguments.max_minibatch_size),
-            num_workers=2
+            shuffle=True
         )
 
         if epoch % 10 == 0:
             validate(tcn, use_cuda, arguments)
 
-        for minibatch in data_loader:
+        for minibatch, _ in data_loader:
             minibatch = normalize(minibatch)
             frames = Variable(minibatch)
 
