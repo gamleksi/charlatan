@@ -6,7 +6,7 @@ from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
-from util import VideoTripletDataset, TripletBuilder, distance, Logger
+from util import VideoTripletDataset, SingleViewTripletBuilder, distance, Logger
 from tcn import define_model, PosNet
 from torchvision import transforms
 
@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--model-name', type=str, default='tcn')
     parser.add_argument('--log-file', type=str, default='./out.log')
     parser.add_argument('--lr-start', type=float, default=0.01)
+    parser.add_argument('--triplets-from-videos', type=int, default=5)
     return parser.parse_args()
 
 arguments = get_args()
@@ -41,7 +42,7 @@ def batch_size(epoch, max_size):
 
 def validate(tcn, use_cuda, arguments):
     # Run model on validation data and log results
-    dataset = VideoTripletDataset(arguments.validation_directory, IMAGE_SIZE)
+    dataset = VideoTripletDataset(arguments.validation_directory, IMAGE_SIZE, arguments)
     data_loader = DataLoader(dataset, batch_size=arguments.max_minibatch_size, shuffle=False, num_workers=2)
 
     num_correct = 0
@@ -94,7 +95,7 @@ def main():
     if use_cuda:
         tcn.cuda()
 
-    triplet_builder = TripletBuilder(arguments.train_directory, IMAGE_SIZE)
+    triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments)
 
     optimizer = optim.SGD(tcn.parameters(), lr=arguments.lr_start, momentum=0.9)
 

@@ -42,12 +42,8 @@ def ls(path):
     # returns list of files in directory without hidden ones.
     return [p for p in os.listdir(path) if p[0] != '.']
 
-class TripletBuilder(object):
-    # The directory structure is such that the training directory contains several subfolders.
-    # Each subfolder should contain distinct videos numbered 1-n such that they correspond to videos
-    # in the sibling folders. E.g. video video_dir/angle1/1.mp4 should be of the same trajectory as
-    # video_dir/angle2/1.mp4.
-    def __init__(self, video_directory, image_size):
+class SingleViewTripletBuilder(object):
+    def __init__(self, video_directory, image_size, cli_args):
         self.frame_size = image_size
         self._read_angle_directories(video_directory)
 
@@ -56,19 +52,18 @@ class TripletBuilder(object):
         # the frame.
         self.positive_frame_margin = 50
         self.video_index = 0
+        self.cli_args = cli_args
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
         self._angle_directories = [os.path.join(self._video_directory, p) for p in ls_directories(video_directory)]
         filenames = ls(self._angle_directories[0])
         self.angle1_paths = [os.path.join(self._angle_directories[0], f) for f in filenames]
-        self.angle2_paths = [os.path.join(self._angle_directories[1], f) for f in filenames]
         self.video_count = len(self.angle1_paths)
 
     def _count_frames(self):
-        frame_lengths1 = np.array([len(imageio.read(p)) for p in self.angle1_paths])
-        frame_lengths2 = np.array([len(imageio.read(p)) for p in self.angle2_paths])
-        self.frame_lengths = np.minimum(frame_lengths1, frame_lengths2)
+        frame_lengths = np.array([len(imageio.read(p)) for p in self.angle1_paths])
+        self.frame_lengths = frame_lengths
         self.cumulative_lengths = np.zeros(len(self.frame_lengths), dtype=np.int32)
         prev = 0
         for i, frames in enumerate(self.frame_lengths):
@@ -77,15 +72,14 @@ class TripletBuilder(object):
 
     @functools.lru_cache(maxsize=1)
     def get_video(self, index):
-        snap1 = read_video(self.angle1_paths[index], self.frame_size)
-        snap2 = read_video(self.angle2_paths[index], self.frame_size)
-        return snap1, snap2
+        snap = read_video(self.angle1_paths[index], self.frame_size)
+        return snap
 
     def build_set(self, tcn):
         triplets = []
-        for i in range(5):
-            snap1, snap2 = self.get_video(self.video_index)
-            anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap1, snap2)
+        for i in range(self.cli_args.triplets_from_videos):
+            snap = self.get_video(self.video_index)
+            anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap)
 
             triplet_count = anchor_frames.size()[0]
             triplet = torch.zeros(triplet_count, 3, 3, *self.frame_size)
@@ -97,25 +91,38 @@ class TripletBuilder(object):
         tensors = torch.cat(triplets, dim=0)
         return TensorDataset(tensors, torch.zeros(tensors.size()[0]))
 
+    def sample_positive_frame_index(self, video_index, anchor_index):
+        lower_bound = max(0, anchor_index - self.positive_frame_margin)
+        upper_bound = min(self.frame_lengths[video_index] - 1, anchor_index + self.positive_frame_margin)
+        return np.random.choice(np.arange(lower_bound, upper_bound, 1))
+
     def negative_frame_indices(self, positive_index, video_length):
         frame_range = np.arange(max(0, positive_index - self.positive_frame_margin),
             min(video_length, positive_index + self.positive_frame_margin))
         return frame_range
 
-    def sample_frames(self, tcn, snap1, snap2):
-        use_cuda = torch.cuda.is_available()
-        positive_index = np.random.choice(np.arange(0, self.frame_lengths[self.video_index]))
-        anchor_frame = Tensor(snap1[positive_index])
-        positive_frame = Tensor(snap2[positive_index])
-        negative_video = snap1 if np.random.rand() < 0.5 else snap2
-        negative_video = Tensor(negative_video)
+    def sample_frames(self, tcn, snap):
+        anchor_index = np.random.choice(np.arange(0, self.frame_lengths[self.video_index]))
+        anchor_frame = Tensor(snap[anchor_index])
+        positive_index = self.sample_positive_frame_index(self.video_index, anchor_index)
+        positive_frame = Tensor(snap[positive_index])
+        negative_frames = self.find_negative_frames(tcn, snap, anchor_index, anchor_frame, positive_frame)
+        dim0size = negative_frames.size()[0]
+        anchor_frame = anchor_frame.repeat(dim0size, 1, 1, 1)
+        positive_frame = positive_frame.repeat(dim0size, 1, 1, 1)
+        return anchor_frame, positive_frame, negative_frames
 
-        negative_frame_indices = self.negative_frame_indices(positive_index, len(negative_video))
+    def find_negative_frames(self, tcn, snap, anchor_index, anchor_frame, positive_frame):
+        use_cuda = torch.cuda.is_available()
+        negative_video = Tensor(snap)
+
+        negative_frame_indices = self.negative_frame_indices(anchor_index, len(negative_video))
         np.random.shuffle(negative_frame_indices)
         if use_cuda:
             anchor_frame = anchor_frame.cuda()
             positive_frame = positive_frame.cuda()
             negative_video = negative_video.cuda()
+
         anchor_output = tcn(Variable(
             torch.unsqueeze(anchor_frame, dim=0),
             volatile=True))
@@ -132,16 +139,68 @@ class TripletBuilder(object):
         indices = torch.LongTensor(indices)
         if use_cuda:
             indices = indices.cuda()
-        negative_frames = torch.index_select(negative_video, 0, indices)
+        return torch.index_select(negative_video, 0, indices)
+
+class MultiViewTripletBuilder(SingleViewTripletBuilder):
+    # The directory structure is such that the training directory contains several subfolders.
+    # Each subfolder should contain distinct videos numbered 1-n such that they correspond to videos
+    # in the sibling folders. E.g. video video_dir/angle1/1.mp4 should be of the same trajectory as
+    # video_dir/angle2/1.mp4.
+    def _read_angle_directories(self, video_directory):
+        self._video_directory = video_directory
+        self._angle_directories = [os.path.join(self._video_directory, p) for p in ls_directories(video_directory)]
+        filenames = ls(self._angle_directories[0])
+        self.angle1_paths = [os.path.join(self._angle_directories[0], f) for f in filenames]
+        self.angle2_paths = [os.path.join(self._angle_directories[1], f) for f in filenames]
+        self.video_count = len(self.angle1_paths)
+
+    def _count_frames(self):
+        super()._count_frames()
+        frame_lengths2 = np.array([len(imageio.read(p)) for p in self.angle2_paths])
+        self.frame_lengths = np.minimum(self.frame_lengths, frame_lengths2)
+        self.cumulative_lengths = np.zeros(len(self.frame_lengths), dtype=np.int32)
+        prev = 0
+        for i, frames in enumerate(self.frame_lengths):
+            prev = self.cumulative_lengths[i-1]
+            self.cumulative_lengths[i] = prev + frames
+
+    def build_set(self, tcn):
+        triplets = []
+        for i in range(self.cli_args.triplets_from_videos):
+            snap1, snap2 = self.get_video(self.video_index)
+            anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap1, snap2)
+
+            triplet_count = anchor_frames.size()[0]
+            triplet = torch.zeros(triplet_count, 3, 3, *self.frame_size)
+            triplet[:, 0, :, :, :] = anchor_frames
+            triplet[:, 1, :, :, :] = positive_frames
+            triplet[:, 2, :, :, :] = negative_frames
+            triplets.append(triplet)
+            self.video_index = (self.video_index + 1) % self.video_count
+        tensors = torch.cat(triplets, dim=0)
+        return TensorDataset(tensors, torch.zeros(tensors.size()[0]))
+
+
+    @functools.lru_cache(maxsize=1)
+    def get_video(self, index):
+        snap1 = read_video(self.angle1_paths[index], self.frame_size)
+        snap2 = read_video(self.angle2_paths[index], self.frame_size)
+        return snap1, snap2
+
+    def sample_frames(self, tcn, snap1, snap2):
+        use_cuda = torch.cuda.is_available()
+        positive_index = np.random.choice(np.arange(0, self.frame_lengths[self.video_index]))
+        anchor_frame = Tensor(snap1[positive_index])
+        positive_frame = Tensor(snap2[positive_index])
+        negative_video = snap1 if np.random.rand() < 0.5 else snap2
+        negative_frames = self.find_negative_frames(tcn, negative_video, positive_index, anchor_frame, positive_frame)
+
         dim0size = negative_frames.size()[0]
         anchor_frame = anchor_frame.repeat(dim0size, 1, 1, 1)
         positive_frame = positive_frame.repeat(dim0size, 1, 1, 1)
         return anchor_frame, positive_frame, negative_frames
 
-    def get_frame(self, video, index):
-        return video[index]
-
-class VideoTripletDataset(Dataset, TripletBuilder):
+class VideoTripletDataset(Dataset, MultiViewTripletBuilder):
     def __len__(self):
         return sum(self.frame_lengths)
 
