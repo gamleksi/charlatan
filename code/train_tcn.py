@@ -36,7 +36,7 @@ arguments = get_args()
 
 logger = Logger(arguments.log_file)
 def batch_size(epoch, max_size):
-    exponent = epoch // 10
+    exponent = epoch // 100
     return min(max(2 ** (exponent), 1), max_size)
 
 def validate(tcn, use_cuda, arguments):
