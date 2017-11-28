@@ -3,8 +3,18 @@ import functools
 import imageio
 import numpy as np
 from PIL import Image
-from torch.utils.data import Dataset
+import torch
+from torch.utils.data import Dataset, TensorDataset
 from torchvision.transforms import RandomCrop
+from torch import Tensor
+from torch.autograd import Variable
+import logging
+
+def distance(x1, x2):
+    assert(x1.size() == x2.size())
+    diff = torch.abs(x1 - x2)
+    return torch.pow(diff, 2).sum(dim=1)
+
 
 def view_image(frame):
     # For debugging. Shows the image
@@ -15,7 +25,7 @@ def view_image(frame):
 def _resize_frame(frame, out_size):
     image = Image.fromarray(frame)
     image = image.resize(out_size)
-    scaled = np.array(image) / 255
+    scaled = np.array(image, dtype=np.float32) / 255
     return np.transpose(scaled, [2, 0, 1])
 
 def read_video(filepath, frame_size):
@@ -34,19 +44,22 @@ def ls(path):
     # returns list of files in directory without hidden ones.
     return [p for p in os.listdir(path) if p[0] != '.']
 
-class VideoTripletDataset(Dataset):
+class TripletBuilder(object):
     # The directory structure is such that the training directory contains several subfolders.
     # Each subfolder should contain distinct videos numbered 1-n such that they correspond to videos
     # in the sibling folders. E.g. video video_dir/angle1/1.mp4 should be of the same trajectory as
     # video_dir/angle2/1.mp4.
-    def __init__(self, video_directory):
-        self.frame_size = (299, 299)
+    def __init__(self, video_directory, image_size):
+        self.frame_size = image_size
         self._read_angle_directories(video_directory)
 
         self._count_frames()
         # The negative example has to be from outside the buffer window. Taken from both sides of
         # the frame.
         self.positive_frame_margin = 50
+        self.video_index = 0
+        self.set_size = 2 ** 12
+        self.labels = np.zeros(self.set_size)
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
@@ -72,6 +85,51 @@ class VideoTripletDataset(Dataset):
         snap2 = read_video(self.angle2_paths[index], self.frame_size)
         return snap1, snap2
 
+    def build_set(self, tcn):
+        tensors = np.zeros((self.set_size, 3, 3, *self.frame_size), dtype=np.float32)
+        for i in range(self.set_size):
+            snap1, snap2 = self.get_video(self.video_index)
+            anchor_frame, positive_frame, negative_frame = self.sample_frames(tcn, snap1, snap2)
+            tensors[i, :] = np.stack([anchor_frame, positive_frame, negative_frame])
+
+        self.video_index += 1 % self.video_count
+        return TensorDataset(tensors, self.labels)
+
+    def negative_frame_indices(self, positive_index, video_length):
+        frame_range = np.arange(max(0, positive_index - self.positive_frame_margin),
+            min(video_length, positive_index + self.positive_frame_margin))
+        return frame_range
+
+    def sample_frames(self, tcn, snap1, snap2):
+        use_cuda = torch.cuda.is_available()
+        positive_index = np.random.choice(np.arange(0, self.frame_lengths[self.video_index]))
+        anchor_frame = snap1[positive_index]
+        positive_frame = snap2[positive_index]
+        negative_video = snap1 if np.random.rand() < 0.5 else snap2
+        negative_video = Variable(Tensor(snap2), volatile=True)
+        if use_cuda:
+            negative_video.cuda()
+
+        arange = np.arange(0, len(negative_video))
+        np.random.shuffle(arange)
+        negative_frame = None
+        for i in arange:
+            frame = negative_video[i]
+            outputs = tcn(torch.stack([anchor_frame, positive_frame, frame]))
+            p_dist = distance(outputs[0], outputs[1])
+            n_dist = distance(outputs[0], outputs[2])
+            if p_dist < n_dist:
+                negative_frame = frame
+                break
+
+        if negative_frame is None:
+            raise ValueError("no negative frame was suitable")
+        return anchor_frame, positive_frame, negative_frame
+
+    def get_frame(self, video, index):
+        return video[index]
+
+class VideoTripletDataset(Dataset, TripletBuilder):
     def __len__(self):
         return sum(self.frame_lengths)
 
@@ -113,11 +171,17 @@ class VideoTripletDataset(Dataset):
 
     def _sample_negative_frame_index(self, video, positive_index):
         frames = len(video)
-        frame_range = np.arange(max(0, positive_index - self.positive_frame_margin),
-            min(frames, positive_index + self.positive_frame_margin)
-            , 1)
-        return np.random.choice(frame_range)
+        return np.random.choice(self.negative_frame_indices(positive_index, frames))
 
     def _read_frame(self, video, frame_index):
         return video[frame_index]
 
+
+class Logger(object):
+    def __init__(self, logfilename):
+        logging.basicConfig(filename=logfilename, level=logging.DEBUG, filemode='w')
+
+    def info(self, *arguments):
+        print(*arguments)
+        message = " ".join(map(repr, arguments))
+        logging.info(message)
