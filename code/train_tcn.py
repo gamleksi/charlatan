@@ -6,17 +6,11 @@ from torch import optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
-from util import VideoTripletDataset, SingleViewTripletBuilder, distance, Logger
+from util import (VideoTripletDataset, SingleViewTripletBuilder, distance, Logger, ensure_folder,
+            normalize)
 from tcn import define_model, PosNet
-from torchvision import transforms
 
-
-# Measured on validation set
-color_means = [0.7274369 , 0.75985962, 0.83737165]
-color_std = [0.01760677,  0.01127113, 0.00469666]
 IMAGE_SIZE = (128, 128)
-
-normalize = transforms.Normalize(color_means, color_std)
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -40,13 +34,15 @@ def batch_size(epoch, max_size):
     exponent = epoch // 100
     return min(max(2 ** (exponent), 1), max_size)
 
+validation_builder = SingleViewTripletBuilder(arguments.validation_directory, IMAGE_SIZE, arguments, look_for_negative=False)
+validation_set = validation_builder.build_set()
+del validation_builder
+
 def validate(tcn, use_cuda, arguments):
     # Run model on validation data and log results
-    dataset = VideoTripletDataset(arguments.validation_directory, IMAGE_SIZE, arguments)
-    data_loader = DataLoader(dataset, batch_size=arguments.max_minibatch_size, shuffle=False, num_workers=2)
-
+    data_loader = DataLoader(validation_set, batch_size=arguments.max_minibatch_size, shuffle=False)
     num_correct = 0
-    for minibatch in data_loader:
+    for minibatch, _ in data_loader:
         minibatch = normalize(minibatch)
         frames = Variable(minibatch, volatile=True)
 
@@ -66,18 +62,9 @@ def validate(tcn, use_cuda, arguments):
 
         assert(d_positive.size()[0] == minibatch.size()[0])
 
-        num_correct += (d_positive < d_negative).data.cpu().numpy().sum()
+        num_correct += ((d_positive + arguments.margin) < d_negative).data.cpu().numpy().sum()
 
-    logger.info("Validation score correct: {0}/{1}".format(num_correct, len(dataset)))
-
-
-def ensure_folder(folder):
-    path_fragments = os.path.split(folder)
-    joined = '.'
-    for fragment in path_fragments:
-        joined = os.path.join(joined, fragment)
-        if not os.path.exists(joined):
-            os.mkdir(joined)
+    logger.info("Validation score correct: {0}/{1}".format(num_correct, len(validation_set)))
 
 def model_filename(model_name, epoch):
     return "{model_name}-epoch-{epoch}.pk".format(model_name=model_name, epoch=epoch)
@@ -99,7 +86,7 @@ def main():
 
     optimizer = optim.SGD(tcn.parameters(), lr=arguments.lr_start, momentum=0.9)
 
-    for epoch in range(1, arguments.epochs):
+    for epoch in range(0, arguments.epochs):
         logger.info("Starting epoch: {0}".format(epoch))
         dataset = triplet_builder.build_set(tcn)
         logger.info("Created {0} triplets".format(len(dataset)))
@@ -136,7 +123,7 @@ def main():
 
         logger.info('loss: ', loss.data[0])
 
-        if epoch % arguments.save_every == 0:
+        if epoch % arguments.save_every == 0 and epoch != 0:
             logger.info('Saving model.')
             save_model(tcn, model_filename(arguments.model_name, epoch), arguments.model_folder)
 

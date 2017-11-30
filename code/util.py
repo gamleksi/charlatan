@@ -2,13 +2,19 @@ import os
 import functools
 import imageio
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import torch
 from torch.utils.data import Dataset, TensorDataset
-from torchvision.transforms import RandomCrop
+from torchvision import transforms
 from torch import Tensor
 from torch.autograd import Variable
 import logging
+
+# Measured on validation set
+color_means = [0.7274369 , 0.75985962, 0.83737165]
+color_std = [0.01760677,  0.01127113, 0.00469666]
+
+normalize = transforms.Normalize(color_means, color_std)
 
 def distance(x1, x2):
     diff = torch.abs(x1 - x2)
@@ -20,8 +26,17 @@ def view_image(frame):
     img = Image.fromarray(np.transpose(frame * 255, [1, 2, 0]).astype(np.uint8))
     img.show()
 
+def ensure_folder(folder):
+    path_fragments = os.path.split(folder)
+    joined = '.'
+    for fragment in path_fragments:
+        joined = os.path.join(joined, fragment)
+        if not os.path.exists(joined):
+            os.mkdir(joined)
+
 def _resize_frame(frame, out_size):
     image = Image.fromarray(frame)
+    image = ImageOps.crop(image, border=200)
     image = image.resize(out_size)
     scaled = np.array(image, dtype=np.float32) / 255
     return np.transpose(scaled, [2, 0, 1])
@@ -43,16 +58,17 @@ def ls(path):
     return [p for p in os.listdir(path) if p[0] != '.']
 
 class SingleViewTripletBuilder(object):
-    def __init__(self, video_directory, image_size, cli_args):
+    def __init__(self, video_directory, image_size, cli_args, look_for_negative=True):
         self.frame_size = image_size
         self._read_angle_directories(video_directory)
 
         self._count_frames()
         # The negative example has to be from outside the buffer window. Taken from both sides of
         # the frame.
-        self.positive_frame_margin = 50
+        self.positive_frame_margin = 100
         self.video_index = 0
         self.cli_args = cli_args
+        self.look_for_negative = look_for_negative
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
@@ -75,18 +91,20 @@ class SingleViewTripletBuilder(object):
         snap = read_video(self.angle1_paths[index], self.frame_size)
         return snap
 
-    def build_set(self, tcn):
+    def sample_triplets(self, snap, tcn=None):
+        anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap)
+        triplet_count = anchor_frames.size()[0]
+        triplet = torch.zeros(triplet_count, 3, 3, *self.frame_size)
+        triplet[:, 0, :, :, :] = anchor_frames
+        triplet[:, 1, :, :, :] = positive_frames
+        triplet[:, 2, :, :, :] = negative_frames
+        return triplet
+
+    def build_set(self, tcn=None):
         triplets = []
         for i in range(self.cli_args.triplets_from_videos):
             snap = self.get_video(self.video_index)
-            anchor_frames, positive_frames, negative_frames = self.sample_frames(tcn, snap)
-
-            triplet_count = anchor_frames.size()[0]
-            triplet = torch.zeros(triplet_count, 3, 3, *self.frame_size)
-            triplet[:, 0, :, :, :] = anchor_frames
-            triplet[:, 1, :, :, :] = positive_frames
-            triplet[:, 2, :, :, :] = negative_frames
-            triplets.append(triplet)
+            triplets.append(self.sample_triplets(snap, tcn))
             self.video_index = (self.video_index + 1) % self.video_count
         tensors = torch.cat(triplets, dim=0)
         return TensorDataset(tensors, torch.zeros(tensors.size()[0]))
@@ -96,9 +114,9 @@ class SingleViewTripletBuilder(object):
         upper_bound = min(self.frame_lengths[video_index] - 1, anchor_index + self.positive_frame_margin)
         return np.random.choice(np.arange(lower_bound, upper_bound, 1))
 
-    def negative_frame_indices(self, positive_index, video_length):
-        frame_range = np.arange(max(0, positive_index - self.positive_frame_margin),
-            min(video_length, positive_index + self.positive_frame_margin))
+    def negative_frame_indices(self, anchor_index, video_length):
+        frame_range = np.arange(max(0, anchor_index - self.positive_frame_margin),
+            min(video_length, anchor_index + self.positive_frame_margin))
         return frame_range
 
     def sample_frames(self, tcn, snap):
@@ -106,11 +124,21 @@ class SingleViewTripletBuilder(object):
         anchor_frame = Tensor(snap[anchor_index])
         positive_index = self.sample_positive_frame_index(self.video_index, anchor_index)
         positive_frame = Tensor(snap[positive_index])
-        negative_frames = self.find_negative_frames(tcn, snap, anchor_index, anchor_frame, positive_frame)
+        if self.look_for_negative:
+            negative_frames = self.find_negative_frames(tcn, snap, anchor_index, anchor_frame, positive_frame)
+        else:
+            negative_frames = self.sample_negative_frames(snap, anchor_index)
         dim0size = negative_frames.size()[0]
         anchor_frame = anchor_frame.repeat(dim0size, 1, 1, 1)
         positive_frame = positive_frame.repeat(dim0size, 1, 1, 1)
         return anchor_frame, positive_frame, negative_frames
+
+    def sample_negative_frames(self, snap, anchor_index):
+        video_tensor = Tensor(snap)
+        indices = self.negative_frame_indices(anchor_index, len(snap))
+        indices = np.random.choice(indices, size=50, replace=False)
+        indices = torch.LongTensor(indices)
+        return torch.index_select(video_tensor, 0, indices)
 
     def find_negative_frames(self, tcn, snap, anchor_index, anchor_frame, positive_frame):
         use_cuda = torch.cuda.is_available()
@@ -179,7 +207,6 @@ class MultiViewTripletBuilder(SingleViewTripletBuilder):
             self.video_index = (self.video_index + 1) % self.video_count
         tensors = torch.cat(triplets, dim=0)
         return TensorDataset(tensors, torch.zeros(tensors.size()[0]))
-
 
     @functools.lru_cache(maxsize=1)
     def get_video(self, index):
