@@ -6,7 +6,7 @@ from torch import optim
 from torch import multiprocessing
 from torch.optim import lr_scheduler
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.data.sampler import RandomSampler
 from torchvision import transforms
 from util import (VideoTripletDataset, SingleViewTripletBuilder, distance, Logger, ensure_folder,
@@ -50,15 +50,16 @@ def batch_size(epoch, max_size):
     return min(max(2 ** (exponent), 2), max_size)
 
 validation_builder = SingleViewTripletBuilder(arguments.validation_directory, IMAGE_SIZE, arguments,
-    look_for_negative=False,
-    transforms=normalize)
-validation_set = validation_builder.build_set()
+    transforms=normalize, sample_size=200)
+validation_set = [validation_builder.build_set() for i in range(3)]
+validation_set = ConcatDataset(validation_set)
 del validation_builder
 
 def validate(tcn, use_cuda, arguments):
     # Run model on validation data and log results
-    data_loader = DataLoader(validation_set, batch_size=1024, shuffle=False, pin_memory=True)
-    num_correct = 0
+    data_loader = DataLoader(validation_set, batch_size=256, shuffle=False, pin_memory=True)
+    correct_with_margin = 0
+    correct_without_margin = 0
     for minibatch, _ in data_loader:
         frames = Variable(minibatch, volatile=True)
 
@@ -78,9 +79,15 @@ def validate(tcn, use_cuda, arguments):
 
         assert(d_positive.size()[0] == minibatch.size()[0])
 
-        num_correct += ((d_positive + arguments.margin) < d_negative).data.cpu().numpy().sum()
+        correct_with_margin += ((d_positive + arguments.margin) < d_negative).data.cpu().numpy().sum()
+        correct_without_margin += (d_positive < d_negative).data.cpu().numpy().sum()
 
-    logger.info("Validation score correct: {0}/{1}".format(num_correct, len(validation_set)))
+    message = "Validation score correct with margin {with_margin}/{total} and without margin {without_margin}/{total}".format(
+        with_margin=correct_with_margin,
+        without_margin=correct_without_margin,
+        total=len(validation_set)
+    )
+    logger.info(message)
 
 def model_filename(model_name, epoch):
     return "{model_name}-epoch-{epoch}.pk".format(model_name=model_name, epoch=epoch)
@@ -123,8 +130,9 @@ def main():
         RandomNoiseTransform(scale=0.2)
     ])
 
-    triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments, look_for_negative=False,
-        transforms=training_transforms)
+    triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments,
+        transforms=training_transforms,
+        sample_size=500)
 
     queue = multiprocessing.Queue(3)
     dataset_builder_process = multiprocessing.Process(target=build_set, args=(queue, triplet_builder, logger), daemon=True)
@@ -148,14 +156,14 @@ def main():
         data_loader = DataLoader(
             dataset=dataset,
             batch_size=arguments.minibatch_size, # batch_size(epoch, arguments.max_minibatch_size),
-            shuffle=False,
+            shuffle=True,
             pin_memory=True
         )
 
         if epoch % 10 == 0:
             validate(tcn, use_cuda, arguments)
 
-        for i in range(0, ITERATE_OVER_TRIPLETS):
+        for _ in range(0, ITERATE_OVER_TRIPLETS):
             losses = []
             for minibatch, _ in data_loader:
                 frames = Variable(minibatch)
@@ -175,7 +183,7 @@ def main():
                 d_negative = distance(anchor_output, negative_output)
                 loss = torch.clamp(arguments.margin + d_positive - d_negative, min=0.0).mean()
 
-                losses.append(loss.numpy()[0])
+                losses.append(loss.data.cpu().numpy()[0])
 
                 optimizer.zero_grad()
                 loss.backward()

@@ -58,7 +58,7 @@ def ls(path):
     return [p for p in os.listdir(path) if p[0] != '.']
 
 class SingleViewTripletBuilder(object):
-    def __init__(self, video_directory, image_size, cli_args, look_for_negative=True, sample_size=500,
+    def __init__(self, video_directory, image_size, cli_args, sample_size=500,
         transforms=None):
         self.frame_size = image_size
         self._read_angle_directories(video_directory)
@@ -70,7 +70,6 @@ class SingleViewTripletBuilder(object):
         self.negative_frame_margin = 48
         self.video_index = 0
         self.cli_args = cli_args
-        self.look_for_negative = look_for_negative
         self.sample_size = sample_size
         if transforms is None:
             transforms = lambda x: x
