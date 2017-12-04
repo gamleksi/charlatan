@@ -4,20 +4,20 @@ import numpy as np
 import torch
 from PIL import Image
 from util import SingleViewTripletBuilder, ensure_folder
+from torch.utils.data import ConcatDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--video-dir', type=str, default='./validation_videos')
 parser.add_argument('--out', type=str, default='./validation')
-parser.add_argument('--iterations', type=int, default=20)
+parser.add_argument('--iterations', type=int, default=2)
 args = parser.parse_args()
 
 ensure_folder(args.out)
-triplet_builder = SingleViewTripletBuilder('./data/validation', (128, 128), args, look_for_negative=False)
-all_triplets = []
+triplet_builder = SingleViewTripletBuilder('./data/validation', (299, 299), args, look_for_negative=False, sample_size=100)
+datasets = []
 for i in range(args.iterations):
-    video = triplet_builder.get_video(i % triplet_builder.video_count)
-    triplets = triplet_builder.sample_triplets(video)
-    all_triplets.append(triplets)
+    dataset = triplet_builder.build_set()
+    datasets.append(dataset)
 
 def to_image(triplet):
     np_array = triplet.numpy()
@@ -33,6 +33,6 @@ def save_triplet(triplet, index):
     to_image(negative_frame).save(os.path.join(args.out, '{0}-n.jpg'.format(index)), 'JPEG')
     print('generated images for ', index)
 
-all_triplets = torch.cat(all_triplets, dim=0)
-for index, triplet in enumerate(all_triplets):
+for index, triplet in enumerate(ConcatDataset(datasets)):
+    triplet = triplet[0]
     save_triplet(triplet, index)
