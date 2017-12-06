@@ -1,18 +1,13 @@
-import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision import models
-from torch import optim
-from torch.autograd import Variable, Function
-from torch.utils.data import DataLoader
-from torch.utils.data.sampler import RandomSampler
-from util import VideoTripletDataset
+from torch.autograd import Function
 
 class BatchNormConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super().__init__()
-        self.conv2d = nn.Conv2d(in_channels, out_channels, bias=False, **kwargs)
+        self.conv2d = nn.Conv2d(in_channels, out_channels, **kwargs)
         self.batch_norm = nn.BatchNorm2d(out_channels, eps=1e-3)
 
     def forward(self, x):
@@ -21,13 +16,60 @@ class BatchNormConv2d(nn.Module):
         return F.relu(x, inplace=True)
 
 class Dense(nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, activation=None):
         super().__init__()
         self.linear = nn.Linear(in_features, out_features)
+        self.activation = activation
 
     def forward(self, x):
         x = self.linear(x)
-        return F.relu(x, inplace=True)
+        if self.activation:
+            x = self.activation(x, inplace=True)
+        return x
+
+class EmbeddingNet(nn.Module):
+    def normalize(self, x):
+        buffer = torch.pow(x, 2)
+        normp = torch.sum(buffer, 1).add_(1e-10)
+        normalization_constant = torch.sqrt(normp)
+        output = torch.div(x, normalization_constant.view(-1, 1).expand_as(x))
+        return output.view(x.size())
+
+class PosNet(EmbeddingNet):
+    def __init__(self):
+        super(PosNet, self).__init__()
+        # Input 1
+        self.Conv2d_1a = nn.Conv2d(3, 64, bias=False, kernel_size=10, stride=2)
+        self.Conv2d_2a = BatchNormConv2d(64, 32, bias=False, kernel_size=3, stride=1)
+        self.Conv2d_3a = BatchNormConv2d(32, 32, bias=False, kernel_size=3, stride=1)
+        self.Conv2d_4a = BatchNormConv2d(32, 32, bias=False, kernel_size=2, stride=1)
+
+        self.Dense1 = Dense(6 * 6 * 32, 200, activation=F.relu)
+        self.Dense2 = Dense(200, 128, activation=None)
+        self.alpha = 10
+
+    def forward(self, input_batch):
+        # 128 x 128 x 3
+        x = self.Conv2d_1a(input_batch)
+        # 60 x 60 x 64
+        x = self.Conv2d_2a(x)
+        # 58 x 58 x 64
+        x = F.max_pool2d(x, kernel_size=2, stride=2)
+        # 29 x 29 x 32
+        x = self.Conv2d_3a(x)
+        # 27 x 27 x 32
+        x = F.max_pool2d(x, kernel_size=2, stride=2)
+        # 13 x 13 x 32
+        x = self.Conv2d_4a(x)
+        # 12 x 12 x 32
+        x = F.max_pool2d(x, kernel_size=2, stride=2)
+        x = x.view(x.size()[0], -1)
+        # 6 x 6 x 32
+        x = self.Dense1(x)
+        # 200
+        x = self.Dense2(x)
+
+        return self.normalize(x) * self.alpha
 
 class TCNModel(nn.Module):
     def __init__(self, inception):
@@ -44,8 +86,10 @@ class TCNModel(nn.Module):
         self.Conv2d_6a_3x3 = BatchNormConv2d(288, 100, kernel_size=3, stride=1)
         self.Conv2d_6b_3x3 = BatchNormConv2d(100, 20, kernel_size=3, stride=1)
         self.SpatialSoftmax = nn.Softmax2d()
-        self.FullyConnected7a = Dense(31 * 31 * 20, 1000)
+        self.FullyConnected7a = Dense(31 * 31 * 20, 1000, activation=F.relu)
         self.FullyConnected7b = Dense(1000, 128)
+
+        self.alpha = 10.0
 
     def forward(self, x):
         if self.transform_input:
@@ -84,59 +128,13 @@ class TCNModel(nn.Module):
         # 128
         x = self.FullyConnected7b(x)
 
-        return x
+        # Normalize output such that output lives on unit sphere.
+        # Multiply by alpha as in https://arxiv.org/pdf/1703.09507.pdf
+        return self.normalize(x) * self.alpha
 
-def distance(x1, x2):
-    assert(x1.size() == x2.size())
-    diff = torch.abs(x1 - x2)
-    return torch.pow(diff, 2).sum(dim=1)
 
-def define_model(use_cuda):
-    tcn = TCNModel(models.inception_v3(pretrained=True))
+def define_model(use_cuda, pretrained=True):
+    tcn = TCNModel(models.inception_v3(pretrained=pretrained))
     if use_cuda:
         tcn.cuda()
     return tcn
-
-def main():
-    use_cuda = torch.cuda.is_available()
-
-    tcn = define_model(use_cuda)
-
-    dataset = VideoTripletDataset('./data/')
-    data_loader = DataLoader(
-        dataset=dataset,
-        batch_size=1,
-        shuffle=False
-    )
-
-    margin = 0.5
-
-    optimizer = optim.SGD(tcn.parameters(), lr=1e-3, momentum=0.9)
-
-    for minibatch in data_loader:
-        frames = Variable(minibatch)
-
-        if use_cuda:
-            frames = frames.cuda()
-
-        positive_frames = frames[:, 0, :, :, :]
-        anchor_frames = frames[:, 1, :, :, :]
-        negative_frames = frames[:, 2, :, :, :]
-
-        positive_output = tcn(positive_frames)
-        anchor_output = tcn(anchor_frames)
-        negative_output = tcn(negative_frames)
-
-        loss = distance(anchor_output, positive_output) - (
-            distance(anchor_output, negative_output)
-        ) + margin
-
-        loss = torch.sum(loss)
-
-        loss.backward()
-        optimizer.step()
-        print('loss: ', loss.data[0])
-
-
-if __name__ == '__main__':
-    main()
