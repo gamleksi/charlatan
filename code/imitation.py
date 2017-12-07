@@ -136,7 +136,7 @@ class ImitationEnv(KukaPoseEnv):
         video_embedding = embeddings[0, :]
         frame_embedding = embeddings[1, :]
         distance = self._distance(video_embedding, frame_embedding)
-        return (self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
+        return (self.alpha * distance - self.beta * np.sqrt(self.gamma + distance))
 
     def _distance(self, embedding1, embedding2):
         return np.power(embedding1 - embedding2, 2)

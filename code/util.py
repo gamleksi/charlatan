@@ -253,7 +253,7 @@ class VideoTripletDataset(Dataset, MultiViewTripletBuilder):
 
 class Logger(object):
     def __init__(self, logfilename):
-        logging.basicConfig(filename=logfilename, level=logging.DEBUG, filemode='w')
+        logging.basicConfig(filename=logfilename, level=logging.DEBUG, filemode='a')
 
     def info(self, *arguments):
         print(*arguments)
