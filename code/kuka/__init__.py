@@ -31,12 +31,17 @@ register (
     }
 )
 
-def model_mock(x):
-    return x.flatten()
+
+from imitation_util import imitation_arguments 
 
 register (
-    id="KukaImitatorEnv-v0",
-    entry_point='kuka.imitator_env:KukaImitatorEnv',
-    kwargs={'renders': False, 'video_directory': './imitator/video/',
-     'model': model_mock}
+    id="KukaImitationEnv-v0",
+    entry_point='imitation:ImitationEnv',
+    kwargs=imitation_arguments(use_cuda=True)
+)
+
+register (
+    id="KukaImitationEnv-v1",
+    entry_point='imitation:ImitationEnv',
+    kwargs=imitation_arguments(use_cuda=False)
 )

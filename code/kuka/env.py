@@ -41,27 +41,35 @@ class KukaPoseEnv(KukaGymEnv):
     def _setup_kuka(self):
         self._kuka = kuka.Kuka(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
         self._kuka.useInverseKinematics = False
-
-    def _setup_spaces(self):
+    
+    def _setup_action_space(self):
         action_dimensions = len(self._kuka.motorIndices)
         self.action_space = spaces.Box(
             low=-np.ones(action_dimensions) * self._kuka.maxForce,
             high=np.ones(action_dimensions) * self._kuka.maxForce)
 
-        joint_lower_limit = np.zeros(self._kuka.numJoints)
-        joint_upper_limit = np.zeros(self._kuka.numJoints)
+    def _setup_observation_space(self):
+         self.observation_space = spaces.Box(
+            low=np.concatenate((self.joint_lower_limit, self.joint_lower_limit)),
+            high=np.concatenate((self.joint_upper_limit, self.joint_upper_limit)))
+
+    def _setup_goal_space(self):
+        self.goal_space = spaces.Box(
+            low=self.joint_lower_limit,
+            high=self.joint_upper_limit)
+
+    def _setup_spaces(self):
+        self._setup_action_space()
+        self.joint_lower_limit = np.zeros(self._kuka.numJoints)
+        self.joint_upper_limit = np.zeros(self._kuka.numJoints)
+
         for joint_index in range(self._kuka.numJoints):
             joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
-            joint_lower_limit[joint_index] = joint_info[8]
-            joint_upper_limit[joint_index] = joint_info[9]
+            self.joint_lower_limit[joint_index] = joint_info[8]
+            self.joint_upper_limit[joint_index] = joint_info[9]
+        self._setup_observation_space()
+        self._setup_goal_space()
 
-        self.goal_space = spaces.Box(
-            low=joint_lower_limit,
-            high=joint_upper_limit)
-        
-        self.observation_space = spaces.Box(
-            low=np.concatenate((joint_lower_limit, joint_lower_limit)),
-            high=np.concatenate((joint_upper_limit, joint_upper_limit)))
 
     def _reset(self):
         self.terminated = 0
@@ -94,10 +102,10 @@ class KukaPoseEnv(KukaGymEnv):
             if self._renders:
                 time.sleep(self._timeStep)
             self._observation = self.getExtendedObservation()
+            self._envStepCounter += 1
             done = self._termination()
             if done:
                 break
-            self._envStepCounter += 1
         reward = self._reward()
         return self.buildObservation(), reward, done, {}
 

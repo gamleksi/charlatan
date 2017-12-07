@@ -16,7 +16,7 @@ class ImitationEnv(KukaPoseEnv):
         'yaw': 0,
     }
 
-    def __init__(self, video_dir=None, tcn=None, frame_size=None, transforms=None, num_embedding_observations=8, **kwargs):
+    def __init__(self, video_dir=None, tcn=None, frame_size=None, transforms=None, num_embedding_observations=1, **kwargs):
         self.video_index = -1
         self._build_video_paths(video_dir)
         self.use_cuda = torch.cuda.is_available()
@@ -44,46 +44,29 @@ class ImitationEnv(KukaPoseEnv):
         return observation
     
     def initialize_video_data(self, video_index):
-        self.video = read_video(self.video_paths[self.video_index], self.frame_size)
+        self.video = read_video(self.video_paths[video_index], self.frame_size)
         self.video_length = len(self.video)
 
 
-    def _setup_spaces(self):
-
-        action_dimensions = len(self._kuka.motorIndices)
-        self.action_space = spaces.Box(
-            low=-np.ones(action_dimensions) * self._kuka.maxForce,
-            high=np.ones(action_dimensions) * self._kuka.maxForce)
-
-        joint_lower_limit = np.zeros(self._kuka.numJoints)
-        joint_upper_limit = np.zeros(self._kuka.numJoints)
-        for joint_index in range(self._kuka.numJoints):
-            joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
-            joint_lower_limit[joint_index] = joint_info[8]
-            joint_upper_limit[joint_index] = joint_info[9]
-        
+    def _setup_goal_space(self):
         embedding_space = self.embedding_observations()
         embedding_space = embedding_space.flatten()
-
-        self.observation_space = spaces.Box(
-            low=np.concatenate((joint_lower_limit, embedding_space)),
-            high=np.concatenate((joint_upper_limit, embedding_space)))
-
         self.goal_space = spaces.Box(
             low=embedding_space[0],
             high=embedding_space[1])
 
+    def _setup_observation_space(self):
+        embedding_space = self.embedding_observations()
+        embedding_space = embedding_space.flatten()
+        self.observation_space = spaces.Box(
+            low=np.concatenate((self.joint_lower_limit, embedding_space)),
+            high=np.concatenate((self.joint_upper_limit, embedding_space)))
+
+
     def embedding_observations(self):
-        video_frames = []
-        for i in range(self.num_embedding_observations):
-            if(self._envStepCounter + i <  self.video_length):
-                frame_index = self._envStepCounter + i 
-            else:
-                frame_index = -1
-            video_frames.append(torch.Tensor(self.transforms(self.video[frame_index])))
-
-        embeddings = self.frame_embeddings(video_frames)
-
+        video_frames = self.video[self._envStepCounter]
+        video_frames = self.transforms(torch.Tensor(video_frames))
+        embeddings = self.frame_embeddings([video_frames])
         return embeddings
 
 
@@ -98,7 +81,7 @@ class ImitationEnv(KukaPoseEnv):
         return embeddings
 
     def _termination(self):
-        return self._envStepCounter >= self.video_length
+        return self._envStepCounter >= self.video_length - 1
 
     def _get_current_frame(self):
         base_position, orientation = bullet.getBasePositionAndOrientation(self._kuka.kukaUid)
@@ -115,33 +98,34 @@ class ImitationEnv(KukaPoseEnv):
             viewMatrix=view_matrix, projectionMatrix=proj_matrix,
             width=1000, height=900, renderer=bullet.ER_BULLET_HARDWARE_OPENGL)
 
-        #rgb_array = np.array(px)
         rgb_array = np.array(px[:,:,0:3])
-        return _resize_frame(rgb_array, self.frame_size)
+        rgb_array = _resize_frame(rgb_array, self.frame_size)
+        return rgb_array
 
     def buildObservation(self):
         embeddings = self.embedding_observations()
-        return embeddings.flatten()
+        observation = np.concatenate((self._observation, embeddings.flatten()))
+        return observation
 
     def debug_image(self, frame,id):
         import cv2
         cv2.imwrite('state-{}.png'.format(id), frame)
 
     def _reward(self):
-        video_frame = self.transforms(self.video[self._envStepCounter])
-        current_frame = self.transforms(self._get_current_frame())
+        video_frame = torch.Tensor(self.video[self._envStepCounter])
+        current_frame = torch.Tensor(self._get_current_frame())
         embeddings = self.frame_embeddings([
-            torch.Tensor(current_frame),
-            torch.Tensor(current_frame)]) 
+            self.transforms(video_frame),
+            self.transforms(current_frame)]) 
         video_embedding = embeddings[0, :]
         frame_embedding = embeddings[1, :]
         distance = self._distance(video_embedding, frame_embedding)
-        return (self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
+        return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
 
     def _distance(self, embedding1, embedding2):
-        return np.power(embedding1 - embedding2, 2)
+        return np.sum(np.power(embedding1 - embedding2, 2))
 
-from util import normalize
+from util import normalize, view_image
 from tcn import define_model
 
 if __name__ == "__main__":
@@ -155,6 +139,7 @@ if __name__ == "__main__":
     tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
     transforms = normalize
 
-    env = ImitationEnv(renders=False, video_dir='./data/video/angle-1', tcn=tcn, frame_size=frame_size)
-    for _ in range(10):
+    env = ImitationEnv(transforms=transforms, renders=False, video_dir='./data/video/angle-1', tcn=tcn, frame_size=frame_size)
+    done = False
+    while not(done):
         observations, reward, done, _ = env.step(env.action_space.sample())
