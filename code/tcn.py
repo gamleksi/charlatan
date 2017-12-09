@@ -45,7 +45,7 @@ class PosNet(EmbeddingNet):
         self.Conv2d_4a = BatchNormConv2d(32, 32, bias=False, kernel_size=2, stride=1)
 
         self.Dense1 = Dense(6 * 6 * 32, 200, activation=F.relu)
-        self.Dense2 = Dense(200, 128, activation=None)
+        self.Dense2 = Dense(200, 32, activation=None)
         self.alpha = 10
 
     def forward(self, input_batch):
@@ -71,7 +71,7 @@ class PosNet(EmbeddingNet):
 
         return self.normalize(x) * self.alpha
 
-class TCNModel(nn.Module):
+class TCNModel(EmbeddingNet):
     def __init__(self, inception):
         super().__init__()
         self.transform_input = inception.transform_input
@@ -86,8 +86,8 @@ class TCNModel(nn.Module):
         self.Conv2d_6a_3x3 = BatchNormConv2d(288, 100, kernel_size=3, stride=1)
         self.Conv2d_6b_3x3 = BatchNormConv2d(100, 20, kernel_size=3, stride=1)
         self.SpatialSoftmax = nn.Softmax2d()
-        self.FullyConnected7a = Dense(31 * 31 * 20, 1000, activation=F.relu)
-        self.FullyConnected7b = Dense(1000, 128)
+        self.FullyConnected7a = Dense(31 * 31 * 20, 256, activation=F.relu)
+        self.FullyConnected7b = Dense(256, 32)
 
         self.alpha = 10.0
 
@@ -123,9 +123,9 @@ class TCNModel(nn.Module):
         x = self.Conv2d_6b_3x3(x)
         # 31 x 31 x 20
         x = self.SpatialSoftmax(x)
-        # 1000
+        # 256
         x = self.FullyConnected7a(x.view(x.size()[0], -1))
-        # 128
+
         x = self.FullyConnected7b(x)
 
         # Normalize output such that output lives on unit sphere.
@@ -133,8 +133,5 @@ class TCNModel(nn.Module):
         return self.normalize(x) * self.alpha
 
 
-def define_model(use_cuda, pretrained=True):
-    tcn = TCNModel(models.inception_v3(pretrained=pretrained))
-    if use_cuda:
-        tcn.cuda()
-    return tcn
+def define_model(pretrained=True):
+    return TCNModel(models.inception_v3(pretrained=pretrained))

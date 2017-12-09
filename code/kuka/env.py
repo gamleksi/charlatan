@@ -24,6 +24,7 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_spaces()
         self._goalReset = goalReset
         self.goal = np.array(goal) if goal is None else self.getNewGoal()  
+        self.joint_history = []
         self._seed()
         self.reset()
         self.viewer = None
@@ -40,27 +41,36 @@ class KukaPoseEnv(KukaGymEnv):
     def _setup_kuka(self):
         self._kuka = kuka.Kuka(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
         self._kuka.useInverseKinematics = False
-
-    def _setup_spaces(self):
+    
+    def _setup_action_space(self):
         action_dimensions = len(self._kuka.motorIndices)
         self.action_space = spaces.Box(
             low=-np.ones(action_dimensions) * self._kuka.maxForce,
             high=np.ones(action_dimensions) * self._kuka.maxForce)
 
-        joint_lower_limit = np.zeros(self._kuka.numJoints)
-        joint_upper_limit = np.zeros(self._kuka.numJoints)
+    def _setup_observation_space(self):
+         self.observation_space = spaces.Box(
+            low=np.concatenate((self.joint_lower_limit,-self.joint_velocity_limit, self.joint_lower_limit)),
+            high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, self.joint_upper_limit)))
+
+    def _setup_goal_space(self):
+        self.goal_space = spaces.Box(
+            low=self.joint_lower_limit,
+            high=self.joint_upper_limit)
+
+    def _setup_spaces(self):
+        self._setup_action_space()
+        self.joint_lower_limit = np.zeros(self._kuka.numJoints)
+        self.joint_upper_limit = np.zeros(self._kuka.numJoints)
+        self.joint_velocity_limit = np.zeros(self._kuka.numJoints) 
         for joint_index in range(self._kuka.numJoints):
             joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
-            joint_lower_limit[joint_index] = joint_info[8]
-            joint_upper_limit[joint_index] = joint_info[9]
+            self.joint_lower_limit[joint_index] = joint_info[8]
+            self.joint_upper_limit[joint_index] = joint_info[9]
+            self.joint_velocity_limit[joint_index] = joint_info[11] 
+        self._setup_observation_space()
+        self._setup_goal_space()
 
-        self.goal_space = spaces.Box(
-            low=joint_lower_limit,
-            high=joint_upper_limit)
-        
-        self.observation_space = spaces.Box(
-            low=np.concatenate((joint_lower_limit, joint_lower_limit)),
-            high=np.concatenate((joint_upper_limit, joint_upper_limit)))
 
     def _reset(self):
         self.terminated = 0
@@ -73,16 +83,17 @@ class KukaPoseEnv(KukaGymEnv):
         self._kuka.reset()
         self._envStepCounter = 0
         bullet.stepSimulation()
-        self._observation = self.getExtendedObservation()
 
         # Sample a new random goal pose 
         if self._goalReset:
             self.goal = self.getNewGoal()
-        return self.buildObservation()
+        self._observation = self.getExtendedObservation()
+
+        return self._observation
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
-        at_goal = np.linalg.norm(self._observation - self.goal, 2) < 1e-6
+        at_goal = np.linalg.norm(self._joint_positions() - self.goal, 2) < 1e-6
         return too_long or at_goal
 
     def _step(self, action):
@@ -92,25 +103,34 @@ class KukaPoseEnv(KukaGymEnv):
             if self._renders:
                 time.sleep(self._timeStep)
             self._observation = self.getExtendedObservation()
+            self._envStepCounter += 1
             done = self._termination()
             if done:
                 break
-            self._envStepCounter += 1
+        self.last_action = action
         reward = self._reward()
-        return self.buildObservation(), reward, done, {}
+        return self._observation, reward, done, {}
 
-    def buildObservation(self):
-        return np.concatenate((self._observation, self.goal))
 
     def _reward(self):
-        return -np.linalg.norm(np.abs(self._observation - self.goal), 2)
+        goal_distance = -np.linalg.norm(np.abs(self._joint_positions() - self.goal), 2)
+        return goal_distance - np.linalg.norm(np.abs(self.last_action), 2)
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
         return np.array(goal)
 
-    def getExtendedObservation(self):
+    def _joint_positions(self):
         joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+        return np.array([jointState[0] for jointState in joint_states])
+
+    def _joint_velocities(self):
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+        return np.array([jointState[1] for jointState in joint_states])
+
+    def getExtendedObservation(self):
         # The first item in the joint state is the joint position.
-        joint_positions = [jointState[0] for jointState in joint_states]
-        return np.array(joint_positions)
+        joint_positions = self._joint_positions()
+        joint_velocities = self._joint_velocities()
+
+        return np.concatenate((joint_positions, joint_velocities, self.goal))
