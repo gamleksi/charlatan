@@ -13,9 +13,9 @@ class KukaTorqueControl(kuka.Kuka):
     
     def reset(self):
         super(KukaTorqueControl, self).reset()
-        for jointIndex in range (self.numJoints):
-            bullet.resetJointState(self.kukaUid,jointIndex,self.jointPositions[jointIndex])
-            bullet.setJointMotorControl2(bodyUniqueId=self.kukaUid,   jointIndex=jointIndex, controlMode=bullet.TORQUE_CONTROL)
+    #    for jointIndex in range (self.numJoints):
+    #        bullet.resetJointState(self.kukaUid,jointIndex,self.jointPositions[jointIndex])
+    #        bullet.setJointMotorControl2(bodyUniqueId=self.kukaUid,   jointIndex=jointIndex, controlMode=bullet.TORQUE_CONTROL)
 
     def applyAction(self, motorCommands):
         for idx in range(len(motorCommands)):
@@ -96,7 +96,7 @@ class KukaPoseEnv(KukaGymEnv):
         bullet.setPhysicsEngineParameter(numSolverIterations=150)
         bullet.setTimeStep(self._timeStep)
         bullet.loadURDF(os.path.join(self._urdfRoot, "plane.urdf"),[0, 0, 0])
-        bullet.setGravity(0, 0, -100)
+        bullet.setGravity(0, 0, -10)
 
         self._kuka.reset()
         self._envStepCounter = 0
