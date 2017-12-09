@@ -9,7 +9,5 @@ done = False
 while not done:
     action = env.action_space.sample()
     observation, reward, done, _ = env.step(action)
+    import ipdb; ipdb.set_trace()
     env.render()
-
-
-

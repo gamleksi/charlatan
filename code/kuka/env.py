@@ -7,6 +7,21 @@ from pybullet_envs.bullet import kuka
 from gym import spaces
 import pybullet_data
 
+class KukaTorqueControl(kuka.Kuka):
+    def __init__(self, urdfRootPath, timeStep):
+        super(KukaTorqueControl, self).__init__(urdfRootPath=urdfRootPath, timeStep=timeStep)
+    
+    def reset(self):
+        super(KukaTorqueControl, self).reset()
+        for jointIndex in range (self.numJoints):
+            bullet.resetJointState(self.kukaUid,jointIndex,self.jointPositions[jointIndex])
+            bullet.setJointMotorControl2(bodyUniqueId=self.kukaUid,   jointIndex=jointIndex, controlMode=bullet.TORQUE_CONTROL)
+
+    def applyAction(self, motorCommands):
+        for idx in range(len(motorCommands)):
+            motor = self.motorIndices[idx]
+            bullet.setJointMotorControl2(self.kukaUid, motor,bullet.TORQUE_CONTROL, force=motorCommands[idx])
+
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
@@ -39,7 +54,7 @@ class KukaPoseEnv(KukaGymEnv):
             bullet.connect(bullet.DIRECT)
 
     def _setup_kuka(self):
-        self._kuka = kuka.Kuka(urdfRootPath=self._urdfRoot, timeStep=self._timeStep)
+        self._kuka = KukaTorqueControl(self._urdfRoot, self._timeStep)
         self._kuka.useInverseKinematics = False
     
     def _setup_action_space(self):
@@ -63,8 +78,11 @@ class KukaPoseEnv(KukaGymEnv):
         self.joint_lower_limit = np.zeros(self._kuka.numJoints)
         self.joint_upper_limit = np.zeros(self._kuka.numJoints)
         self.joint_velocity_limit = np.zeros(self._kuka.numJoints) 
+        infos = []
         for joint_index in range(self._kuka.numJoints):
             joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
+            infos.append(joint_info)
+
             self.joint_lower_limit[joint_index] = joint_info[8]
             self.joint_upper_limit[joint_index] = joint_info[9]
             self.joint_velocity_limit[joint_index] = joint_info[11] 
@@ -78,7 +96,7 @@ class KukaPoseEnv(KukaGymEnv):
         bullet.setPhysicsEngineParameter(numSolverIterations=150)
         bullet.setTimeStep(self._timeStep)
         bullet.loadURDF(os.path.join(self._urdfRoot, "plane.urdf"),[0, 0, 0])
-        bullet.setGravity(0, 0, -10)
+        bullet.setGravity(0, 0, -100)
 
         self._kuka.reset()
         self._envStepCounter = 0
@@ -111,10 +129,9 @@ class KukaPoseEnv(KukaGymEnv):
         reward = self._reward()
         return self._observation, reward, done, {}
 
-
     def _reward(self):
         goal_distance = -np.linalg.norm(np.abs(self._joint_positions() - self.goal), 2)
-        return goal_distance - np.linalg.norm(np.abs(self.last_action), 2)
+        return goal_distance # - np.linalg.norm(np.abs(self.last_action), 2)
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
