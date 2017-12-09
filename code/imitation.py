@@ -59,8 +59,8 @@ class ImitationEnv(KukaPoseEnv):
         embedding_space = self.embedding_observations()
         embedding_space = embedding_space.flatten()
         self.observation_space = spaces.Box(
-            low=np.concatenate((self.joint_lower_limit, embedding_space)),
-            high=np.concatenate((self.joint_upper_limit, embedding_space)))
+            low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, embedding_space)),
+            high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, embedding_space)))
 
 
     def embedding_observations(self):
@@ -102,15 +102,6 @@ class ImitationEnv(KukaPoseEnv):
         rgb_array = _resize_frame(rgb_array, self.frame_size)
         return rgb_array
 
-    def buildObservation(self):
-        embeddings = self.embedding_observations()
-        observation = np.concatenate((self._observation, embeddings.flatten()))
-        return observation
-
-    def debug_image(self, frame,id):
-        import cv2
-        cv2.imwrite('state-{}.png'.format(id), frame)
-
     def _reward(self):
         video_frame = torch.Tensor(self.video[self._envStepCounter])
         current_frame = torch.Tensor(self._get_current_frame())
@@ -124,6 +115,12 @@ class ImitationEnv(KukaPoseEnv):
 
     def _distance(self, embedding1, embedding2):
         return np.sum(np.power(embedding1 - embedding2, 2))
+
+    def getExtendedObservation(self):
+        embeddings = self.embedding_observations()
+        joint_positions = self._joint_positions()
+        joint_velocities = self._joint_velocities()
+        return np.concatenate((joint_positions, joint_velocities, embeddings.flatten()))
 
 from util import normalize, view_image
 from tcn import define_model

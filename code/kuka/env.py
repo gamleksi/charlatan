@@ -50,8 +50,8 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _setup_observation_space(self):
          self.observation_space = spaces.Box(
-            low=np.concatenate((self.joint_lower_limit, self.joint_lower_limit)),
-            high=np.concatenate((self.joint_upper_limit, self.joint_upper_limit)))
+            low=np.concatenate((self.joint_lower_limit,-self.joint_velocity_limit, self.joint_lower_limit)),
+            high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, self.joint_upper_limit)))
 
     def _setup_goal_space(self):
         self.goal_space = spaces.Box(
@@ -62,11 +62,12 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_action_space()
         self.joint_lower_limit = np.zeros(self._kuka.numJoints)
         self.joint_upper_limit = np.zeros(self._kuka.numJoints)
-
+        self.joint_velocity_limit = np.zeros(self._kuka.numJoints) 
         for joint_index in range(self._kuka.numJoints):
             joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
             self.joint_lower_limit[joint_index] = joint_info[8]
             self.joint_upper_limit[joint_index] = joint_info[9]
+            self.joint_velocity_limit[joint_index] = joint_info[11] 
         self._setup_observation_space()
         self._setup_goal_space()
 
@@ -82,17 +83,17 @@ class KukaPoseEnv(KukaGymEnv):
         self._kuka.reset()
         self._envStepCounter = 0
         bullet.stepSimulation()
-        self._observation = self.getExtendedObservation()
-        self.joint_history = [self._observation]
 
         # Sample a new random goal pose 
         if self._goalReset:
             self.goal = self.getNewGoal()
-        return self.buildObservation()
+        self._observation = self.getExtendedObservation()
+
+        return self._observation
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
-        at_goal = np.linalg.norm(self._observation - self.goal, 2) < 1e-6
+        at_goal = np.linalg.norm(self._joint_positions() - self.goal, 2) < 1e-6
         return too_long or at_goal
 
     def _step(self, action):
@@ -106,31 +107,30 @@ class KukaPoseEnv(KukaGymEnv):
             done = self._termination()
             if done:
                 break
+        self.last_action = action
         reward = self._reward()
-        return self.buildObservation(), reward, done, {}
+        return self._observation, reward, done, {}
 
-    def buildObservation(self):
-        return np.concatenate((self._observation, self.goal))
-
-    def update_joint_history(self):
-        if len(self.joint_history) < 10:
-            self.joint_history.append(self._observation) 
-        else:
-            self.joint_history[:-1] = self.joint_history[1:]
-            self.joint_history[-1] = self._observation
 
     def _reward(self):
-        goal_distance = -np.linalg.norm(np.abs(self._observation - self.goal), 2)
-        not_moving =  max(- 1 / np.linalg.norm(np.abs(self._observation - self.joint_history[0]), 2), goal_distance)
-        self.update_joint_history()
-        return goal_distance + not_moving
+        goal_distance = -np.linalg.norm(np.abs(self._joint_positions() - self.goal), 2)
+        return goal_distance - np.linalg.norm(np.abs(self.last_action), 2)
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
         return np.array(goal)
 
-    def getExtendedObservation(self):
+    def _joint_positions(self):
         joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+        return np.array([jointState[0] for jointState in joint_states])
+
+    def _joint_velocities(self):
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+        return np.array([jointState[1] for jointState in joint_states])
+
+    def getExtendedObservation(self):
         # The first item in the joint state is the joint position.
-        joint_positions = [jointState[0] for jointState in joint_states]
-        return np.array(joint_positions)
+        joint_positions = self._joint_positions()
+        joint_velocities = self._joint_velocities()
+
+        return np.concatenate((joint_positions, joint_velocities, self.goal))
