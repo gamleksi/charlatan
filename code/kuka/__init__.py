@@ -11,7 +11,7 @@ register(
     entry_point='kuka.env:KukaPoseEnv',
     timestep_limit=300,
     kwargs={'goalReset': False,
-    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0]
+    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0]}
 )
 
 register (
