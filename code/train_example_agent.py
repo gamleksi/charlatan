@@ -1,13 +1,14 @@
 import gym
 from kuka.env import KukaPoseEnv
+import numpy as np
 
 env = gym.make("KukaPoseEnv-v0")
 
-env.reset()
 
-done = False
-while not done:
+for i in range(10):
+    done = False
+    env.reset()
     action = env.action_space.sample()
-    observation, reward, done, _ = env.step(action)
-    import ipdb; ipdb.set_trace()
-    env.render()
+    while not done:
+        observation, reward, done, _ = env.step(action)
+        env.render()
