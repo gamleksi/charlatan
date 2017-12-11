@@ -38,7 +38,7 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_kuka()
         self._setup_spaces()
         self._goalReset = goalReset
-        self.goal = np.array(goal) if goal is None else self.getNewGoal()  
+        self.goal = np.array(goal) if goal is not None else self.getNewGoal()
         self.joint_history = []
         self._seed()
         self.reset()
