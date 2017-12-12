@@ -7,11 +7,32 @@ register(
 )
 
 register(
+    id="KukaTrajectoryEnv-v0",
+    entry_point='kuka.env:KukaTrajectoryEnv',
+    timestep_limit=500,
+    kwargs={'actionRepeat': 1}
+)
+
+register(
+    id="KukaTrajectoryEnv-v1",
+    entry_point='kuka.env:KukaTrajectoryEnv',
+    timestep_limit=500,
+    kwargs={'actionRepeat': 1, 'renders': False}
+)
+
+register(
     id="KukaPoseEnv-v1",
     entry_point='kuka.env:KukaPoseEnv',
     timestep_limit=300,
     kwargs={'goalReset': False,
     'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0]}
+)
+
+register(
+    id="KukaPoseEnv-v2",
+    entry_point='kuka.env:KukaPoseEnv',
+    timestep_limit=30,
+    kwargs={'actionRepeat': 50}
 )
 
 register (

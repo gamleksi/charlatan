@@ -41,6 +41,9 @@ def _resize_frame(frame, out_size):
     scaled = np.array(image, dtype=np.float32) / 255
     return np.transpose(scaled, [2, 0, 1])
 
+def write_video(file_name, path, frames):
+    imageio.mimwrite(os.path.join(path, file_name), frames)
+
 def read_video(filepath, frame_size):
     imageio_video = imageio.read(filepath)
     snap_length = len(imageio_video)
