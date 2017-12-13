@@ -42,7 +42,7 @@ class ImitationEnv(KukaPoseEnv):
         self.initialize_video_data(self.video_index)
         observation = super(ImitationEnv, self)._reset()
         return observation
-    
+
     def initialize_video_data(self, video_index):
         self.video = read_video(self.video_paths[video_index], self.frame_size)
         self.video_length = len(self.video)
@@ -107,7 +107,7 @@ class ImitationEnv(KukaPoseEnv):
         current_frame = torch.Tensor(self._get_current_frame())
         embeddings = self.frame_embeddings([
             self.transforms(video_frame),
-            self.transforms(current_frame)]) 
+            self.transforms(current_frame)])
         video_embedding = embeddings[0, :]
         frame_embedding = embeddings[1, :]
         distance = self._distance(video_embedding, frame_embedding)
@@ -127,7 +127,7 @@ from tcn import define_model
 
 if __name__ == "__main__":
     frame_size = (299, 299)
-    
+
     tcn = define_model(False)
     model_path = os.path.join(
         "./trained_models/tcn",

@@ -25,7 +25,7 @@ def get_args():
     parser.add_argument('--train-directory', type=str, default='./data/train/')
     parser.add_argument('--validation-directory', type=str, default='./data/validation/')
     parser.add_argument('--minibatch-size', type=int, default=256)
-    parser.add_argument('--margin', type=float, default=0.2)
+    parser.add_argument('--margin', type=float, default=2.0)
     parser.add_argument('--model-name', type=str, default='tcn')
     parser.add_argument('--log-file', type=str, default='./out.log')
     parser.add_argument('--lr-start', type=float, default=0.01)
@@ -34,24 +34,14 @@ def get_args():
 
 arguments = get_args()
 
-class RandomNoiseTransform(object):
-    def __init__(self, scale=0.2):
-        self.scale = 0.2
-
-    def __call__(self, triplet_minibatch):
-        noise = torch.normal(0.0,
-            torch.Tensor(np.ones(triplet_minibatch.size()) * self.scale)
-        )
-        return triplet_minibatch.add_(noise)
-
 logger = Logger(arguments.log_file)
 def batch_size(epoch, max_size):
     exponent = epoch // 100
     return min(max(2 ** (exponent), 2), max_size)
 
 validation_builder = SingleViewTripletBuilder(arguments.validation_directory, IMAGE_SIZE, arguments,
-    transforms=normalize, sample_size=200)
-validation_set = [validation_builder.build_set() for i in range(3)]
+    transforms=normalize, sample_size=100)
+validation_set = [validation_builder.build_set() for i in range(10)]
 validation_set = ConcatDataset(validation_set)
 del validation_builder
 
@@ -125,10 +115,7 @@ def main():
 
     tcn = create_model(use_cuda)
 
-    training_transforms = transforms.Compose([
-        normalize,
-        RandomNoiseTransform(scale=0.2)
-    ])
+    training_transforms = normalize
 
     triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments,
         transforms=training_transforms,

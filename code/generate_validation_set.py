@@ -13,7 +13,7 @@ parser.add_argument('--iterations', type=int, default=2)
 args = parser.parse_args()
 
 ensure_folder(args.out)
-triplet_builder = SingleViewTripletBuilder('./data/validation', (299, 299), args, look_for_negative=False, sample_size=100)
+triplet_builder = SingleViewTripletBuilder('./data/validation', (299, 299), args, sample_size=100)
 datasets = []
 for i in range(args.iterations):
     dataset = triplet_builder.build_set()

@@ -2,7 +2,7 @@ import os
 import functools
 import imageio
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import transforms as torchvision_transforms
@@ -36,13 +36,12 @@ def ensure_folder(folder):
 
 def _resize_frame(frame, out_size):
     image = Image.fromarray(frame)
-    image = ImageOps.crop(image, border=250)
     image = image.resize(out_size)
     scaled = np.array(image, dtype=np.float32) / 255
     return np.transpose(scaled, [2, 0, 1])
 
 def write_video(file_name, path, frames):
-    imageio.mimwrite(os.path.join(path, file_name), frames)
+    imageio.mimwrite(os.path.join(path, file_name), frames, fps=60)
 
 def read_video(filepath, frame_size):
     imageio_video = imageio.read(filepath)
@@ -68,9 +67,9 @@ class SingleViewTripletBuilder(object):
 
         self._count_frames()
         # The negative example has to be from outside the buffer window. Taken from both sides of
-        # the frame.
-        self.positive_frame_margin = 24
-        self.negative_frame_margin = 48
+        # ihe frame.
+        self.positive_frame_margin = 10
+        self.negative_frame_margin = 50
         self.video_index = 0
         self.cli_args = cli_args
         self.sample_size = sample_size

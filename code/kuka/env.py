@@ -7,10 +7,11 @@ from pybullet_envs.bullet import kuka
 from gym import spaces
 import pybullet_data
 
+
 class KukaTorqueControl(kuka.Kuka):
     def __init__(self, urdfRootPath, timeStep):
         super(KukaTorqueControl, self).__init__(urdfRootPath=urdfRootPath, timeStep=timeStep)
-    
+
     def reset(self):
         # not necessary (?)
         super(KukaTorqueControl, self).reset()
@@ -72,7 +73,7 @@ class KukaPoseEnv(KukaGymEnv):
     def _setup_kuka(self):
         self._kuka = KukaTorqueControl(self._urdfRoot, self._timeStep)
         self._kuka.useInverseKinematics = False
-    
+
     def _setup_action_space(self):
         action_dimensions = len(self._kuka.motorIndices)
         self.action_space = spaces.Box(
