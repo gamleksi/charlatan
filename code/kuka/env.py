@@ -91,16 +91,16 @@ class KukaPoseEnv(KukaGymEnv):
             high=self.joint_upper_limit)
 
     def _setup_spaces(self):
-        self.joint_lower_limit = np.zeros(self._kuka.numJoints)
-        self.joint_upper_limit = np.zeros(self._kuka.numJoints)
-        self.joint_velocity_limit = np.zeros(self._kuka.numJoints) 
-        infos = []
-        for joint_index in range(self._kuka.numJoints):
+        motor_count = len(self._kuka.motorIndices)
+        self.joint_lower_limit = np.zeros(motor_count)
+        self.joint_upper_limit = np.zeros(motor_count)
+        self.joint_velocity_limit = np.zeros(motor_count)
+        for i, joint_index in enumerate(self._kuka.motorIndices):
             joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
-            infos.append(joint_info)
-            self.joint_lower_limit[joint_index] = joint_info[8]
-            self.joint_upper_limit[joint_index] = joint_info[9]
-            self.joint_velocity_limit[joint_index] = joint_info[11] 
+            if joint_info != bullet.JOINT_FIXED:
+                self.joint_lower_limit[i] = joint_info[8]
+                self.joint_upper_limit[i] = joint_info[9]
+                self.joint_velocity_limit[i] = joint_info[11]
         self._setup_action_space()
         self._setup_observation_space()
         self._setup_goal_space()
@@ -108,7 +108,7 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _reset(self):
         bullet.resetSimulation()
-        bullet.setPhysicsEngineParameter(numSolverIterations=150)
+        bullet.setPhysicsEngineParameter(numSolverIterations=150, fixedTimeStep=1/30)
         bullet.setTimeStep(self._timeStep)
         bullet.loadURDF(os.path.join(self._urdfRoot, "plane.urdf"),[0, 0, 0])
         bullet.setGravity(0, 0, -10)
@@ -118,7 +118,7 @@ class KukaPoseEnv(KukaGymEnv):
         bullet.stepSimulation()
 
         self.terminated = 0
-        # Sample a new random goal pose 
+        # Sample a new random goal pose
         if self._goalReset:
             self.goal = self.getNewGoal()
         self._observation = self.getExtendedObservation()
@@ -127,7 +127,7 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
-        at_goal = np.linalg.norm(self._joint_positions() - self.goal, 2) < 1e-6
+        at_goal = np.linalg.norm(self._motorized_joint_positions() - self.goal, 2) < 1e-3
         return too_long or at_goal
 
     def _step(self, action):
@@ -146,46 +146,46 @@ class KukaPoseEnv(KukaGymEnv):
         return self._observation, reward, done, {}
 
     def _reward(self):
-        goal_distance = -np.linalg.norm(np.abs(self._joint_positions() - self.goal), 2)
+        goal_distance = -np.linalg.norm(np.abs(self._motorized_joint_positions() - self.goal), 2)
         return goal_distance # - np.linalg.norm(np.abs(self.last_action), 2)
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
         return np.array(goal)
 
-    def _joint_positions(self):
-        joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+    def _motorized_joint_positions(self):
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, self._kuka.motorIndices)
         return np.array([jointState[0] for jointState in joint_states])
 
     def _joint_velocities(self):
-        joint_states = bullet.getJointStates(self._kuka.kukaUid, range(self._kuka.numJoints))
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, self._kuka.motorIndices)
         return np.array([jointState[1] for jointState in joint_states])
 
     def getExtendedObservation(self):
         # The first item in the joint state is the joint position.
-        joint_positions = self._joint_positions()
+        joint_positions = self._motorized_joint_positions()
         joint_velocities = self._joint_velocities()
 
         return np.concatenate((joint_positions, joint_velocities, self.goal))
 
-from util import _resize_frame  
+from util import _resize_frame
 
 class KukaTrajectoryEnv(KukaPoseEnv):
     CAMERA_POS = {
-        'distance': 2.2,
-        'pitch': -5,
+        'distance': 2.3,
+        'pitch': -20,
         'yaw': 0,
     }
+    CAMERA_OFFSET = np.array([0, 0, 0.3])
+
     def __init__(self, record_movement=True, **kwargs):
         self.record_movement = record_movement
         super(KukaTrajectoryEnv, self).__init__(**kwargs)
-        self._setup_spaces()
 
     def _setup_action_space(self):
-        action_joints = self._kuka.motorIndices
         self.action_space = spaces.Box(
-            low=self.joint_lower_limit[action_joints][:-4],
-            high=self.joint_upper_limit[action_joints][:-4])
+            low=self.joint_lower_limit,
+            high=self.joint_upper_limit)
 
     def _setup_observation_space(self):
         self.observation_space = spaces.Box(
@@ -194,13 +194,13 @@ class KukaTrajectoryEnv(KukaPoseEnv):
 
     def _setup_kuka(self):
         self._kuka = KukaPositionControl(self._urdfRoot, self._timeStep)
-        self._kuka.maxForce = 80
+        self._kuka.maxForce = 500
         self._kuka.useInverseKinematics = False
-    
+
     def _get_current_frame(self):
-        base_position, orientation = bullet.getBasePositionAndOrientation(self._kuka.kukaUid)
+        base_position, _ = bullet.getBasePositionAndOrientation(self._kuka.kukaUid)
         view_matrix = bullet.computeViewMatrixFromYawPitchRoll(
-            cameraTargetPosition=base_position,
+            cameraTargetPosition=base_position + self.CAMERA_OFFSET,
             distance=self.CAMERA_POS['distance'],
             yaw=self.CAMERA_POS['yaw'],
             pitch=self.CAMERA_POS['pitch'],
@@ -210,19 +210,18 @@ class KukaTrajectoryEnv(KukaPoseEnv):
             fov=60, aspect=1.0, nearVal=0.1, farVal=100.0)
         _, _, px, _, _ = bullet.getCameraImage(
             viewMatrix=view_matrix, projectionMatrix=proj_matrix,
-            width=299, height=299, renderer=bullet.ER_BULLET_HARDWARE_OPENGL)
-        rgb_array = np.array(px[:,:,0:3])
-        # rgb_array = _resize_frame(rgb_array, self.frame_size)
+            width=304, height=304, renderer=bullet.ER_BULLET_HARDWARE_OPENGL)
+        rgb_array = np.array(px[:, :, 0:3])
         return rgb_array
 
     def _step(self, action):
-        observation, reward, done, _ = super(KukaTrajectoryEnv, self)._step(action) 
-        if(self.record_movement):
-            frame = self._get_current_frame() 
+        observation, reward, done, _ = super(KukaTrajectoryEnv, self)._step(action)
+        if self.record_movement:
+            frame = self._get_current_frame()
             return observation, reward, done, frame
         else:
             return observation, reward, done, _
 
     def getExtendedObservation(self):
-        joint_positions = self._joint_positions()
+        joint_positions = self._motorized_joint_positions()
         return joint_positions
