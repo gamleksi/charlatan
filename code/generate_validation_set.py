@@ -30,7 +30,7 @@ def save_triplet(triplet, index):
     negative_frame = triplet[2, :, :, :]
     to_image(anchor_frame).save(os.path.join(args.out, '{0}-a.jpg'.format(index)), 'JPEG')
     to_image(positive_frame).save(os.path.join(args.out, '{0}-p.jpg'.format(index)), 'JPEG')
-    to_image(negative_frame).save(os.path.join(args.out, '{0}-n.jpg'.format(index)), 'JPEG')
+    to_image(negative_frame).save(os.path.join(args.out, '{0}-z.jpg'.format(index)), 'JPEG')
     print('generated images for ', index)
 
 for index, triplet in enumerate(ConcatDataset(datasets)):

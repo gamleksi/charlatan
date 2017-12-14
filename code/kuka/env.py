@@ -37,7 +37,10 @@ class KukaPositionControl(kuka.Kuka):
             max_pos = joint_info[9]
             joint_pos = np.random.uniform(low=min_pos, high=max_pos)
             bullet.resetJointState(self.kukaUid,jointIndex, joint_pos)
-            bullet.setJointMotorControl2(self.kukaUid, jointIndex,bullet.POSITION_CONTROL, targetPosition=joint_pos, force=self.maxForce)
+            bullet.setJointMotorControl2(self.kukaUid, jointIndex,bullet.POSITION_CONTROL,
+                targetPosition=joint_pos,
+                force=self.maxForce
+                )
 
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.

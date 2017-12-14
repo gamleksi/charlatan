@@ -43,8 +43,11 @@ class TrajectoryMachine(object):
 
     def __call__(self, queue, args):
         while 1:
-            i = queue.get(block=True, timeout=1)
-            generate_trajectory(i, self.env, args)
+            try:
+                i = queue.get(timeout=1)
+                generate_trajectory(i, self.env, args)
+            except (multiprocessing.TimeoutError, multiprocessing.Queue.Empty):
+                break
 
 def main(args):
     ensure_folder(args.out)

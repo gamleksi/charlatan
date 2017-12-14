@@ -69,7 +69,7 @@ class SingleViewTripletBuilder(object):
         # The negative example has to be from outside the buffer window. Taken from both sides of
         # ihe frame.
         self.positive_frame_margin = 10
-        self.negative_frame_margin = 50
+        self.negative_frame_margin = 30
         self.video_index = 0
         self.cli_args = cli_args
         self.sample_size = sample_size
@@ -128,9 +128,9 @@ class SingleViewTripletBuilder(object):
 
     def sample_positive_frame_index(self, anchor_index):
         lower_bound = max(0, anchor_index - self.positive_frame_margin)
-        range1 = np.arange(lower_bound, anchor_index - 5)
+        range1 = np.arange(lower_bound, anchor_index)
         upper_bound = min(self.frame_lengths[self.video_index] - 1, anchor_index + self.positive_frame_margin)
-        range2 = np.arange(anchor_index + 5, upper_bound)
+        range2 = np.arange(anchor_index + 1, upper_bound)
         return np.random.choice(np.concatenate([range1, range2]))
 
     def negative_frame_indices(self, anchor_index):
