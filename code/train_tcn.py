@@ -90,7 +90,11 @@ def save_model(model, filename, model_folder):
 
 def build_set(queue, triplet_builder, log):
     while 1:
-        dataset = triplet_builder.build_set()
+        datasets = []
+        for i in range(5):
+            dataset = triplet_builder.build_set()
+            datasets.append(dataset)
+        dataset = ConcatDataset(datasets)
         log.info('Created {0} triplets'.format(len(dataset)))
         queue.put(dataset)
 
@@ -119,9 +123,9 @@ def main():
 
     triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments,
         transforms=training_transforms,
-        sample_size=500)
+        sample_size=200)
 
-    queue = multiprocessing.Queue(3)
+    queue = multiprocessing.Queue(1)
     dataset_builder_process = multiprocessing.Process(target=build_set, args=(queue, triplet_builder, logger), daemon=True)
     dataset_builder_process.start()
 

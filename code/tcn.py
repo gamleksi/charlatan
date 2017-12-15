@@ -44,8 +44,7 @@ class PosNet(EmbeddingNet):
         self.Conv2d_3a = BatchNormConv2d(32, 32, bias=False, kernel_size=3, stride=1)
         self.Conv2d_4a = BatchNormConv2d(32, 32, bias=False, kernel_size=2, stride=1)
 
-        self.Dense1 = Dense(6 * 6 * 32, 200, activation=F.relu)
-        self.Dense2 = Dense(200, 32, activation=None)
+        self.Dense1 = Dense(6 * 6 * 32, 32)
         self.alpha = 10
 
     def forward(self, input_batch):
@@ -66,8 +65,7 @@ class PosNet(EmbeddingNet):
         x = x.view(x.size()[0], -1)
         # 6 x 6 x 32
         x = self.Dense1(x)
-        # 200
-        x = self.Dense2(x)
+        # 32
 
         return self.normalize(x) * self.alpha
 
