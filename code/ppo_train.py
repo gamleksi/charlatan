@@ -11,7 +11,7 @@ from pytorch_a2c_ppo_acktr.arguments import get_args
 from baselines import bench
 def make_env(env_id, seed, rank, log_dir):
     def _thunk():
-        env = gym.make(env_id) 
+        env = gym.make(env_id)
         env.seed(seed + rank)
         env = bench.Monitor(env, os.path.join(log_dir, str(rank)))
         return env
@@ -22,7 +22,7 @@ def save_parameters(args):
     parameters = vars(args)
     values = list(parameters.values())
     keys = list(parameters.keys())
-    
+
     if  not(os.path.isfile('experiments.csv')):
         with open('experiments.csv', 'w', newline='') as csvfile:
             filewriter = csv.writer(csvfile)

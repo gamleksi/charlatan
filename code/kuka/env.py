@@ -134,6 +134,7 @@ class KukaPoseEnv(KukaGymEnv):
         return too_long or at_goal
 
     def _step(self, action):
+        action = action * 500
         for i in range(self._actionRepeat):
             self._kuka.applyAction(action)
             bullet.stepSimulation()

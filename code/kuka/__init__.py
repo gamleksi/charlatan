@@ -25,7 +25,7 @@ register(
     entry_point='kuka.env:KukaPoseEnv',
     timestep_limit=300,
     kwargs={'goalReset': False,
-    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0]}
+    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0]}
 )
 
 register(
@@ -47,12 +47,12 @@ register (
     entry_point='kuka.env:KukaPoseEnv',
     timestep_limit=300,
     kwargs={'goalReset': False, 'renders': False,
-    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0]
+    'goal': [0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0]
     }
 )
 
 
-# from imitation_util import imitation_arguments 
+# from imitation_util import imitation_arguments
 
 # register (
 #    id="KukaImitationEnv-v0",

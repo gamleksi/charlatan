@@ -2,7 +2,7 @@ import gym
 from kuka.env import KukaPoseEnv
 import numpy as np
 
-env = gym.make("KukaPoseEnv-v0")
+env = gym.make("KukaPoseEnv-v1")
 
 
 for i in range(10):
