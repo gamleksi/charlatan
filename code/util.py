@@ -26,6 +26,18 @@ def view_image(frame):
     img = Image.fromarray(np.transpose(frame * 255, [1, 2, 0]).astype(np.uint8))
     img.show()
 
+def write_to_csv(values, keys, filepath):
+    if  not(os.path.isfile(filepath)):
+        with open(filepath, 'w', newline='') as csvfile:
+            filewriter = csv.writer(csvfile)
+            filewriter.writerow(keys)
+            filewriter.writerow(values)
+    else:
+        with open(filepath, 'a', newline='') as csvfile:
+            filewriter = csv.writer(csvfile)
+            filewriter.writerow(values)
+
+
 def ensure_folder(folder):
     path_fragments = os.path.split(folder)
     joined = '.'
