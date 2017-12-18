@@ -3,7 +3,6 @@ import gym
 import csv
 
 from imitation import ImitationEnv
-import torch
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pytorch_a2c_ppo_acktr'))
@@ -37,6 +36,7 @@ def save_parameters(args):
             filewriter.writerow(values)
 
 from tcn import define_model, PosNet
+from ppo_model import ModifiedMLPPolicy 
 
 def main():
 
@@ -47,8 +47,12 @@ def main():
     envs = []
     for i in range(0, number_of_processor):
         envs.append(make_env(args.env_name, 2222, i, log_dir))
-    save_parameters(args)
-    ppo(envs=envs)
+
+    save_parameters(args)   
+    if args.modified_model:
+        ppo(envs=envs, MODEL=ModifiedMLPPolicy)
+    else:
+        ppo(envs=envs)
 
 if __name__ == "__main__":
     main()

@@ -100,10 +100,10 @@ register (
     }
 )
 
-# from imitation_util import imitation_arguments
+from imitation_util import imitation_arguments
 
-# register (
-#    id="KukaImitationEnv-v0",
-#    entry_point='imitation:ImitationEnv',
-#    kwargs=imitation_arguments()
-#)
+register (
+    id="KukaImitationEnv-v0",
+    entry_point='imitation:ImitationEnv',
+    kwargs=imitation_arguments()
+)

@@ -140,17 +140,19 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _step(self, action):
         action = action * self._kuka.maxForce
+        reward = 0.
         for i in range(self._actionRepeat):
             self._kuka.applyAction(action)
             bullet.stepSimulation()
             if self._renders:
                 time.sleep(self._timeStep)
-            self._observation = self.getExtendedObservation()
+            reward += self._reward()
             self._envStepCounter += 1
             done = self._termination()
             if done:
+                self._reset()
                 break
-        reward = self._reward()
+            self._observation = self.getExtendedObservation()
         return self._observation, reward, done, {}
 
     def _reward(self):

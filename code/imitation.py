@@ -4,12 +4,12 @@ import pybullet as bullet
 import torch
 from torch.autograd import Variable
 from tcn import PosNet
-from kuka.env import KukaPoseEnv
+from kuka.env import KukaSevenJointsEnv # KukaPoseEnv
 from util import read_video, ls, _resize_frame
 from PIL import Image, ImageOps
 from gym import spaces
 
-class ImitationEnv(KukaPoseEnv):
+class ImitationEnv(KukaSevenJointsEnv):
     CAMERA_POS = {
         'distance': 5,
         'pitch': -20,
@@ -18,6 +18,8 @@ class ImitationEnv(KukaPoseEnv):
 
     def __init__(self, video_dir=None, tcn=None, frame_size=None, transforms=None, num_embedding_observations=1, **kwargs):
         self.video_index = -1
+        self._frame_counter = 0
+        self._frames_repeated = 0 
         self._build_video_paths(video_dir)
         self.use_cuda = torch.cuda.is_available()
         self.frame_size = frame_size
@@ -38,6 +40,9 @@ class ImitationEnv(KukaPoseEnv):
         self.video_paths = [os.path.join(video_dir, f) for f in video_paths]
 
     def _reset(self):
+        print("reset")
+        self._frame_counter = 0
+        self._frames_repeated = 0 
         self.video_index = (self.video_index + 1) % len(self.video_paths)
         self.initialize_video_data(self.video_index)
         observation = super(ImitationEnv, self)._reset()
@@ -46,7 +51,6 @@ class ImitationEnv(KukaPoseEnv):
     def initialize_video_data(self, video_index):
         self.video = read_video(self.video_paths[video_index], self.frame_size)
         self.video_length = len(self.video)
-
 
     def _setup_goal_space(self):
         embedding_space = self.embedding_observations()
@@ -62,13 +66,11 @@ class ImitationEnv(KukaPoseEnv):
             low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, embedding_space)),
             high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, embedding_space)))
 
-
     def embedding_observations(self):
-        video_frames = self.video[self._envStepCounter]
+        video_frames = self.video[self._frame_counter]
         video_frames = self.transforms(torch.Tensor(video_frames))
         embeddings = self.frame_embeddings([video_frames])
         return embeddings
-
 
     def frame_embeddings(self, frames):
         tensors = torch.stack(
@@ -79,9 +81,16 @@ class ImitationEnv(KukaPoseEnv):
             tensors = tensors.cuda()
         embeddings = self.tcn(tensors).cpu().data.numpy()
         return embeddings
-
+    
     def _termination(self):
-        return self._envStepCounter >= self.video_length - 1
+
+        if self._frames_repeated < 3:
+            self._frames_repeated += 1
+        else:
+            self._frames_repeated = 0
+            self._frame_counter += 1
+
+        return self.video_length - 1 < self._frame_counter
 
     def _get_current_frame(self):
         base_position, orientation = bullet.getBasePositionAndOrientation(self._kuka.kukaUid)
@@ -103,7 +112,7 @@ class ImitationEnv(KukaPoseEnv):
         return rgb_array
 
     def _reward(self):
-        video_frame = torch.Tensor(self.video[self._envStepCounter])
+        video_frame = torch.Tensor(self.video[self._frame_counter])
         current_frame = torch.Tensor(self._get_current_frame())
         embeddings = self.frame_embeddings([
             self.transforms(video_frame),
@@ -118,7 +127,7 @@ class ImitationEnv(KukaPoseEnv):
 
     def getExtendedObservation(self):
         embeddings = self.embedding_observations()
-        joint_positions = self._joint_positions()
+        joint_positions = self._motorized_joint_positions()
         joint_velocities = self._joint_velocities()
         return np.concatenate((joint_positions, joint_velocities, embeddings.flatten()))
 
@@ -136,7 +145,7 @@ if __name__ == "__main__":
     tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
     transforms = normalize
 
-    env = ImitationEnv(transforms=transforms, renders=False, video_dir='./data/video/angle-1', tcn=tcn, frame_size=frame_size)
+    env = ImitationEnv(transforms=transforms, renders=True, video_dir='./data/video/angle-1', tcn=tcn, frame_size=frame_size)
     done = False
     while not(done):
         observations, reward, done, _ = env.step(env.action_space.sample())
