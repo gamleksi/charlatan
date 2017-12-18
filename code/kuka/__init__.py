@@ -81,7 +81,7 @@ register (
     id="KukaTrainSevenJointsEnv-v1",
     entry_point='kuka.env:KukaSevenJointsEnv',
     timestep_limit=300,
-    kwargs={'renders': True,
+    kwargs={'renders': False,
     }
 )
 

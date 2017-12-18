@@ -13,8 +13,8 @@ from baselines import bench
 def main():
 
     args = get_args() # list of all arguments: pytorch_a2c_ppo_acktr/arguments.py
-        
     env = gym.make(args.env_name) 
+    env.seed(2222 + 2)
     actor_critic = torch.load(os.path.join('trained_models/ppo/', args.model_name+ ".pt"))
     enjoy(env=env, actor_critic=actor_critic)
 

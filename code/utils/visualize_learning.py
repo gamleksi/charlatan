@@ -6,9 +6,9 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--num-files', type=int, default=1,
     help='how many files from tmp/gym file')
-    parser.add_argument('--dir', default='../pytorch-a2c-ppo-acktr/tmp/gym/')
+    parser.add_argument('--dir', default='../tmp/gym/')
     parser.add_argument('--source-name', default='.monitor.csv')
-    parser.add_argument('--num-mean', type=int, default=500)
+    parser.add_argument('--num-mean', type=int, default=5)
     parser.add_argument('--save-name', default='learning')
     return parser.parse_args()
 
