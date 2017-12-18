@@ -5,6 +5,7 @@ import numpy as np
 from pybullet_envs.bullet import KukaGymEnv
 from pybullet_envs.bullet import kuka
 from gym import spaces
+from gym.spaces import prng
 import pybullet_data
 
 
@@ -45,7 +46,7 @@ class KukaPositionControl(kuka.Kuka):
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
-            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None):
+            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None, seed=None):
         self._timeStep = 1./240.
         self._urdfRoot = urdfRoot
         self._actionRepeat = actionRepeat
@@ -58,11 +59,15 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_kuka()
         self._setup_spaces()
         self._goalReset = goalReset
-        self.goal = np.array(goal) if goal is not None else self.getNewGoal()
+        self.goal = np.array(goal) if goal is not None else None
+        self._seed(seed=seed)
         self.joint_history = []
-        self._seed()
         #self.reset()
         self.viewer = None
+    
+    def _seed(self, seed=None):
+        super(KukaPoseEnv, self)._seed(seed)
+        prng.seed(seed)
 
     def _setup_rendering(self):
         if self._renders:
@@ -122,7 +127,7 @@ class KukaPoseEnv(KukaGymEnv):
 
         self.terminated = 0
         # Sample a new random goal pose
-        if self._goalReset:
+        if self._goalReset or self.goal is None:
             self.goal = self.getNewGoal()
         self._observation = self.getExtendedObservation()
 
@@ -154,7 +159,6 @@ class KukaPoseEnv(KukaGymEnv):
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
-        print(goal)
         return np.array(goal)
 
     def _motorized_joint_positions(self):
