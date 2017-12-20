@@ -21,7 +21,7 @@ class ImitationEnv(KukaSevenJointsEnv):
         self._frame_counter = 0
         self._frames_repeated = 0 
         self._build_video_paths(video_dir)
-        self.use_cuda = torch.cuda.is_available()
+        self.use_cuda =  False # torch.cuda.is_available()
         self.frame_size = frame_size
         self.num_embedding_observations = num_embedding_observations
         self.tcn = tcn
