@@ -18,7 +18,7 @@ def imitation_arguments(use_cuda=torch.cuda.is_available()):
     args = {}
     args['video_dir'] = './data/video/angle-1'  
     args['frame_size'] = (299, 299)  
-    args['tcn'] = None # load_model(use_cuda)
+    args['tcn'] = load_model(False)
     args['transforms'] = normalize
     args['renders'] = False
     return args
