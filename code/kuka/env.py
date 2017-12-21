@@ -62,7 +62,7 @@ class KukaPoseEnv(KukaGymEnv):
         self.goal = np.array(goal) if goal is not None else None
         self._seed(seed=seed)
         self.joint_history = []
-        #self.reset()
+        self.reset()
         self.viewer = None
     
     def _seed(self, seed=None):

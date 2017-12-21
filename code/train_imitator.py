@@ -2,7 +2,7 @@ import os, sys
 import gym
 import csv
 
-from imitation import ImitationEnv
+from imitation import TCNWrapperEnv
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pytorch_a2c_ppo_acktr'))
@@ -49,10 +49,11 @@ def main():
         envs.append(make_env(args.env_name, 2222, i, log_dir))
 
     save_parameters(args)   
+
     if args.modified_model:
-        ppo(envs=envs, MODEL=ModifiedMLPPolicy)
+        ppo(envs=envs, MODEL=ModifiedMLPPolicy, tcn=TCNWrapperEnv())
     else:
-        ppo(envs=envs)
+        ppo(envs=envs, tcn=TCNWrapperEnv())
 
 if __name__ == "__main__":
     main()
