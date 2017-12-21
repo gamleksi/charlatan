@@ -33,7 +33,7 @@ class EmbeddingNet(nn.Module):
         normp = torch.sum(buffer, 1).add_(1e-10)
         normalization_constant = torch.sqrt(normp)
         output = torch.div(x, normalization_constant.view(-1, 1).expand_as(x))
-        return output.view(x.size())
+        return output
 
 class PosNet(EmbeddingNet):
     def __init__(self):
@@ -72,7 +72,7 @@ class PosNet(EmbeddingNet):
 class TCNModel(EmbeddingNet):
     def __init__(self, inception):
         super().__init__()
-        self.transform_input = inception.transform_input
+        self.transform_input = False
         self.Conv2d_1a_3x3 = inception.Conv2d_1a_3x3
         self.Conv2d_2a_3x3 = inception.Conv2d_2a_3x3
         self.Conv2d_2b_3x3 = inception.Conv2d_2b_3x3
