@@ -189,8 +189,8 @@ class TCNWrapperEnv(ImitationEnv):
             torch.Tensor(frames)
             )
         assert frame_embeddings.shape == (frames.shape[0], 32)
-        video_embeddings = frame_embeddings[:video_frames.shape[0]][None]
-        current_embeddings = frame_embeddings[vide_frames.shape[0]:][None]
+        video_embeddings = frame_embeddings[:video_frames.shape[0]]
+        current_embeddings = frame_embeddings[video_frames.shape[0]:]
         distance = self._distance(video_embeddings, current_embeddings)
         assert video_embeddings.shape == (1, 32)
         assert current_embeddings.shape == (1, 32)
