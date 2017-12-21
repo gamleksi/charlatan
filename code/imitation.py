@@ -21,9 +21,9 @@ class ImitationEnv(KukaSevenJointsEnv):
     def __init__(self, video_dir=None, tcn=None, frame_size=None, transforms=None, num_embedding_observations=1, use_cuda=torch.cuda.is_available(), **kwargs):
         self.video_index = -1
         self._frame_counter = 0
-        self._frames_repeated = 0 
+        self._frames_repeated = 0
         self._build_video_paths(video_dir)
-        self.use_cuda = use_cuda  
+        self.use_cuda = use_cuda
         self.frame_size = frame_size
         self.num_embedding_observations = num_embedding_observations
         self.tcn = tcn
@@ -44,7 +44,7 @@ class ImitationEnv(KukaSevenJointsEnv):
     def _reset(self):
         print("reset")
         self._frame_counter = 0
-        self._frames_repeated = 1 
+        self._frames_repeated = 1
         self.video_index = (self.video_index + 1) % len(self.video_paths)
         self.initialize_video_data(self.video_index)
         observation = super(ImitationEnv, self)._reset()
@@ -78,15 +78,12 @@ class ImitationEnv(KukaSevenJointsEnv):
         return embeddings
 
     def frame_embeddings(self, frames):
-        tensors = torch.stack(
-            frames, dim=0
-            )
-        tensors = Variable(tensors, volatile=True)
+        tensors = Variable(frames, volatile=True)
         if self.use_cuda:
             tensors = tensors.cuda()
         embeddings = self.tcn(tensors).cpu().data.numpy()
         return embeddings
-    
+
     def _termination(self):
 
         if self._frames_repeated < 2:
@@ -119,9 +116,8 @@ class ImitationEnv(KukaSevenJointsEnv):
     def _reward(self):
         video_frame = torch.Tensor(self.video[self._frame_counter])
         current_frame = torch.Tensor(self._get_current_frame())
-        embeddings = self.frame_embeddings([
-            self.transforms(video_frame),
-            self.transforms(current_frame)])
+        frames = self.transforms(torch.stack([video_frame, current_frame]))
+        embeddings = self.frame_embeddings(frames)
         video_embedding = embeddings[0, :]
         frame_embedding = embeddings[1, :]
         distance = self._distance(video_embedding, frame_embedding)
@@ -181,40 +177,43 @@ class TCNWrapperEnv(ImitationEnv):
         tcn = define_model(self.use_cuda)
         model_path = os.path.join(
             model_path,
-            model 
+            model
         )
         tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
         return tcn
 
-    def frame_embeddings(self, frames):
-
-        frames = torch.Tensor(frames)
-        for idx in range(frames.shape[0]):
-            frames[idx] = transforms(frames[idx])
-        embeddings = super(TCNWrapperEnv,self).frame_embeddings(frames)
-        return embeddings
-
     def reward(self, video_frames, current_frames):
-        frames = np.concatenate((video_frames, current_frames))
+        frames = np.concatenate([video_frames, current_frames], axis=0)
+        assert len(frames.shape) == 4
         frame_embeddings = self.frame_embeddings(
-            frames
-            ) 
-        video_embeddings = frame_embeddings[:video_frames.shape[0]]
-        current_embeddings = frame_embeddings[video_frames.shape[0]:]
+            torch.Tensor(frames)
+            )
+        assert frame_embeddings.shape == (frames.shape[0], 32)
+        video_embeddings = frame_embeddings[:video_frames.shape[0]][None]
+        current_embeddings = frame_embeddings[vide_frames.shape[0]:][None]
         distance = self._distance(video_embeddings, current_embeddings)
+        assert video_embeddings.shape == (1, 32)
+        assert current_embeddings.shape == (1, 32)
+        assert distance.shape == (video_frames.shape[0],)
+        print(distance)
         return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
 
     def _distance(self, embedding1, embedding2):
+        assert embedding1.shape == embedding2.shape
         return np.sum(np.power(embedding1 - embedding2, 2), axis=1)
 
     def reward2(self, video_frames, current_frames):
         video_embeddings = self.frame_embeddings(
-            video_frames
+            torch.Tensor(video_frames)
             )
         current_embeddings = self.frame_embeddings(
-            current_frames 
+            torch.Tensor(current_frames)
             )
+        assert video_embeddings.shape == (1, 32)
+        assert current_embeddings.shape == (1, 32)
         distance = self._distance(video_embeddings, current_embeddings)
+        assert distance.shape == (video_embeddings.shape[0],)
+        print(distance)
         return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
 
 
