@@ -83,13 +83,13 @@ class ImitationEnv(KukaSevenJointsEnv):
             )
         tensors = Variable(tensors, volatile=True)
         if self.use_cuda:
-            tensors = tensors.cuda()
+            tensors = tensors.cuda(0)
         embeddings = self.tcn(tensors).cpu().data.numpy()
         return embeddings
     
     def _termination(self):
 
-        if self._frames_repeated < 2:
+        if self._frames_repeated < 3:
             self._frames_repeated += 1
         else:
             self._frames_repeated = 0
@@ -136,6 +136,15 @@ class ImitationEnv(KukaSevenJointsEnv):
         joint_velocities = self._joint_velocities()
         return np.concatenate((joint_positions, joint_velocities, embeddings.flatten()))
 
+class ImitationTestEnv(ImitationEnv):
+    def __init__(self, **kwargs):
+        super(ImitationTestEnv, self).__init__(**kwargs)
+    
+    def _step(self, action):
+        observation, reward, done, _ = super(ImitationTestEnv, self)._step(action)
+        return observation, reward, done, self._get_current_frame() 
+
+
 class ImitationWrapperEnv(ImitationEnv):
     def __init__(self, **kwargs):
         super(ImitationWrapperEnv, self).__init__(**kwargs)
@@ -160,9 +169,7 @@ class ImitationWrapperEnv(ImitationEnv):
         reward = self._reward()
         self._envStepCounter += 1
         done = self._termination()
-        if done:
-            self._reset()
-        else:
+        if not(done):
             self._observation = self.getExtendedObservation()
         return self._observation, reward, done, {}
 
@@ -184,10 +191,11 @@ class TCNWrapperEnv(ImitationEnv):
             model 
         )
         tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
+        if self.use_cuda:
+            tcn = tcn.cuda(0)
         return tcn
 
     def frame_embeddings(self, frames):
-
         frames = torch.Tensor(frames)
         for idx in range(frames.shape[0]):
             frames[idx] = transforms(frames[idx])

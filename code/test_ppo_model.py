@@ -8,8 +8,6 @@ from pytorch_a2c_ppo_acktr.enjoy import main as enjoy
 from pytorch_a2c_ppo_acktr.arguments import get_args
 
 
-from baselines import bench
-
 def main():
 
     args = get_args() # list of all arguments: pytorch_a2c_ppo_acktr/arguments.py

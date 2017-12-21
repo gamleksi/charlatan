@@ -103,9 +103,21 @@ register (
 from imitation_util import imitation_arguments
 
 register (
-    id="KukaImitationEnv-v0",
+    id="KukaTrainImitationEnv-v0",
     entry_point='imitation:ImitationEnv',
     kwargs=imitation_arguments()
+)
+
+register (
+    id="KukaImitationEnv-v0",
+    entry_point='imitation:ImitationEnv',
+    kwargs=imitation_arguments(renders=True)
+)
+
+register (
+    id="KukaImitationTest-v0",
+    entry_point='imitation:ImitationTestEnv',
+    kwargs=imitation_arguments(renders=False)
 )
 
 register (
