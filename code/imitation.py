@@ -145,10 +145,13 @@ class ImitationWrapperEnv(ImitationEnv):
     def __init__(self, **kwargs):
         super(ImitationWrapperEnv, self).__init__(**kwargs)
 
-    def _reward(self):
+    def reward_frames(self):
         video_frame = self.video[self._frame_counter]
         current_frame = self._get_current_frame()
-        return [video_frame, current_frame]
+        return {'video_frame': video_frame, 'current_frame': current_frame}
+
+    def _reward(self):
+        return 0 
 
     def getExtendedObservation(self):
         next_frame = self.video[self._frame_counter]
@@ -163,11 +166,12 @@ class ImitationWrapperEnv(ImitationEnv):
         if self._renders:
             time.sleep(self._timeStep)
         reward = self._reward()
+        frames = self.reward_frames()
         self._envStepCounter += 1
         done = self._termination()
         if not(done):
             self._observation = self.getExtendedObservation()
-        return self._observation, reward, done, {}
+        return self._observation, reward, done, frames
 
 
 from tcn import define_model
