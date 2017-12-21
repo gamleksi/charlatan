@@ -1,0 +1,41 @@
+
+We are interested in two questions:
+\begin{itemize}
+\item Is it possible to learn an embedding of video frames in a self-supervised manner using only videos from a single viewpoint?
+\item Is the learned embedding robust and well-behaved enough to power a reward function to use as part of a reinforcement learning problem?
+\end{itemize}
+
+\subsection{Embedding frames of a robotic arm}
+
+We created 200 videos of a robotic arm performing trajectories in a simulated environment. The arm is initialized to random joint positions and it moves to goal joint positions which are also randomly sampled. We use the Bullet 3 physics simulator and a robot modelled after the Kuka iiwa robotic arm.
+
+{
+    \label{example-snap}
+    \centering
+    \includegraphics[width=8cm]{example_snap.png}
+    \captionof{figure}{Two example frames from a recorded trajectory.}
+    \vspace{0.5cm}
+}
+
+We split the 200 videos such that 190 are used for training and 10 for validation.
+
+We use a convolutional neural network derived from the Inception architecture as presented in \citep{inception-v3}. We use the 8 first layers of the network up until the layer labeled `Mixed\_5d`. We add two batch normalized convolutional layers, one spatial softmax transformation followed by two fully connected layers. This is very similar as the network used in \cite{self-supervised-learning}.
+
+The network was implemented using the PyTorch deep learning framework. The layers taken from the inception architecture are initialized to values pretrained on the ImageNet dataset. The added layers are randomly initialized using the default initialization scheme of the PyTorch package.
+
+In our experiments, the output of the network is a 32-dimentional embedding constrained to have an $L_2$ norm of 10. The scaling factor of 10 was motivated by results presented in \cite{constrained-softmax-loss}. We use a margin value of 2.0. The positive frame was sampled from within 10 frames of the anchor frame. The negative frame was sampled from outside a range starting from 30 frames before the anchor frame and ending 30 frames after the anchor frame.
+
+We use the triplet loss presented in the previous section. At each epoch, we create a dataset of 1000 triplets. We then run stochastic gradient descent with momentum against the triplet loss over this dataset 5 times after which a new triplet set is sampled and the process is repeated.
+
+We use a learning rate schedule such that we start with a learning rate of 0.1. Each 500 epochs we decrease the learning rate to 1/10th of the previous rate until we reach 0.0001 inclusive.
+
+\subsection{Learning to imitate}
+
+We used the learned embedding to teach the same simulated robot to imitate itself in a video performing different trajectories. We use the proximal policy optimization algorithm.
+
+The observation at each time step is a concatenation of the robot joint states, joint velocities, the TCN embedding of an image of itself and the TCN embedding of the video frame at that timestep.
+
+The reward calculated using the huber loss presented in section \ref{sec:methods} using the embedding of the image robot and the embedding of the video frame.
+
+Actions are torques applied to the 12 joints of the robotic arm.
+
