@@ -21,19 +21,17 @@ We split the 200 videos such that 190 are used for training and 10 for validatio
 
 We use a convolutional neural network derived from the Inception architecture as presented in \citep{inception-v3}. We use the 8 first layers of the network up until the layer labeled `Mixed\_5d`. We add two batch normalized convolutional layers, one spatial softmax transformation followed by two fully connected layers. This is very similar as the network used in \cite{self-supervised-learning}.
 
-The network was implemented using the PyTorch deep learning framework. The layers taken from the inception architecture are initialized to values pretrained on the ImageNet dataset. The added layers are randomly initialized using the default initialization scheme of the PyTorch package.
+We implemented the neural network using the PyTorch deep learning framework \citep{pytorch}. The layers taken from the inception architecture are initialized to values pretrained on the ImageNet dataset. The added layers are randomly initialized using the default initialization scheme of the PyTorch package.
 
-In our experiments, the output of the network is a 32-dimentional embedding constrained to have an $L_2$ norm of 10. The scaling factor of 10 was motivated by results presented in \cite{constrained-softmax-loss}. We use a margin value of 2.0. The positive frame was sampled from within 10 frames of the anchor frame. The negative frame was sampled from outside a range starting from 30 frames before the anchor frame and ending 30 frames after the anchor frame. The size of the video is 299
+In our experiments, the output of the network is a 32-dimentional embedding constrained to have an $L_2$ norm of 10. The scaling factor of 10 was motivated by results presented in \cite{constrained-softmax-loss}. We use a margin value of 2.0. The positive frame was sampled from within 10 frames of the anchor frame. The negative frame was sampled from outside a range starting from 30 frames before the anchor frame and ending 30 frames after the anchor frame. The size of a video frame is 299 pixels in width and height.
 
-We use the triplet loss presented in the previous section. At each epoch, we create a dataset of triplets sampled from 5 videos with 200 samples per video. We then run stochastic gradient descent with momentum against the triplet loss over this dataset 5 times after which a new triplet dataset is sampled and the process is repeated. The use a batch size of 64 triplets.
+We use the triplet loss presented in the previous section. At each epoch, we create a dataset of triplets sampled from 5 videos with 200 samples per video. We then run stochastic gradient descent with momentum against the triplet loss over this dataset 5 times after which a new triplet dataset is sampled and the process is repeated. The use a minibatch size of 64 triplets.
 
-We use a learning rate schedule such that we start with a learning rate of 0.1. Each 500 epochs we decrease the learning rate to 1/10th of the previous rate until we reach 0.0001 inclusive.
+We use a learning rate schedule such that we start with a learning rate of 0.1. Each 500 epochs we decrease the learning rate to 1/10th of the previous rate until we reach 0.0001 inclusive. Table \ref{cnn-params} summarises the final parameters we used after tuning. The training of the network was performed on a single NVidia Quadro P5000 GPU.
 
-% Please add the following required packages to your document preamble:
 {
     \vspace{0.5cm}
     \centering
-    \label{cnn-params}
     \begin{tabular}{@{}ll@{}}
     \toprule
     \textbf{Parameter}             & \textbf{Value}    \\ \midrule
@@ -47,6 +45,7 @@ We use a learning rate schedule such that we start with a learning rate of 0.1. 
     \textbf{embedding dimensions}  & 32
     \end{tabular}
     \captionof{table}{The parameters we used for training our embedding function.}
+    \label{cnn-params}
 }
 
 \subsection{Learning to imitate}
@@ -57,4 +56,22 @@ The observation at each time step is a concatenation of the robot joint states, 
 
 The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 12 joints of the robotic arm.
 
+\#TODO policy and value network specs.
 
+We trained the imitation agent by running 16 processes of the simulation in parallel. We evaluate the policy network to get an action for each process at each time step. We use a rollout storage to sample updates from. An update is done on the policy and value networks every 1000 time steps by sampling minibatches from the rollout storage. All the parameters we used are summarized in table \ref{ppo-params}.
+
+{
+    \vspace{0.5cm}
+    \centering
+    \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Parameter}             & \textbf{Value}    \\ \midrule
+    $\boldsymbol{\gamma}$        & 0.99                \\
+    $\boldsymbol{\tau}$        & 0.95                \\
+    clip $\boldsymbol{\epsilon}$        & 0.2                \\
+    epochs each update        & 4                \\
+    update interval        & 1000 time steps                \\
+    \end{tabular}
+    \captionof{table}{The parameters we used for proximal policy optimization.}
+    \label{ppo-params}
+}
