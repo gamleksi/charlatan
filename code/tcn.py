@@ -23,7 +23,7 @@ class Dense(nn.Module):
 
     def forward(self, x):
         x = self.linear(x)
-        if self.activation:
+        if self.activation is not None:
             x = self.activation(x, inplace=True)
         return x
 
@@ -33,7 +33,7 @@ class EmbeddingNet(nn.Module):
         normp = torch.sum(buffer, 1).add_(1e-10)
         normalization_constant = torch.sqrt(normp)
         output = torch.div(x, normalization_constant.view(-1, 1).expand_as(x))
-        return output.view(x.size())
+        return output
 
 class PosNet(EmbeddingNet):
     def __init__(self):
@@ -72,7 +72,7 @@ class PosNet(EmbeddingNet):
 class TCNModel(EmbeddingNet):
     def __init__(self, inception):
         super().__init__()
-        self.transform_input = inception.transform_input
+        self.transform_input = True
         self.Conv2d_1a_3x3 = inception.Conv2d_1a_3x3
         self.Conv2d_2a_3x3 = inception.Conv2d_2a_3x3
         self.Conv2d_2b_3x3 = inception.Conv2d_2b_3x3
@@ -84,8 +84,7 @@ class TCNModel(EmbeddingNet):
         self.Conv2d_6a_3x3 = BatchNormConv2d(288, 100, kernel_size=3, stride=1)
         self.Conv2d_6b_3x3 = BatchNormConv2d(100, 20, kernel_size=3, stride=1)
         self.SpatialSoftmax = nn.Softmax2d()
-        self.FullyConnected7a = Dense(31 * 31 * 20, 256, activation=F.relu)
-        self.FullyConnected7b = Dense(256, 32)
+        self.FullyConnected7a = Dense(31 * 31 * 20, 32)
 
         self.alpha = 10.0
 
@@ -121,10 +120,8 @@ class TCNModel(EmbeddingNet):
         x = self.Conv2d_6b_3x3(x)
         # 31 x 31 x 20
         x = self.SpatialSoftmax(x)
-        # 256
+        # 32
         x = self.FullyConnected7a(x.view(x.size()[0], -1))
-
-        x = self.FullyConnected7b(x)
 
         # Normalize output such that output lives on unit sphere.
         # Multiply by alpha as in https://arxiv.org/pdf/1703.09507.pdf

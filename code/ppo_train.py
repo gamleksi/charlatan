@@ -9,6 +9,7 @@ from pytorch_a2c_ppo_acktr.arguments import get_args
 
 
 from baselines import bench
+
 def make_env(env_id, seed, rank, log_dir):
     def _thunk():
         env = gym.make(env_id)
@@ -33,6 +34,8 @@ def save_parameters(args):
             filewriter = csv.writer(csvfile)
             filewriter.writerow(values)
 
+from ppo_model import ModifiedMLPPolicy
+
 def main():
 
     args = get_args() # list of all arguments: pytorch_a2c_ppo_acktr/arguments.py
@@ -43,9 +46,12 @@ def main():
     envs = []
     for i in range(0, number_of_processor):
         envs.append(make_env(env_id, 2222, i, log_dir))
-
-    save_parameters(args)
-    ppo(envs=envs)
+    
+    save_parameters(args)   
+    if args.modified_model:
+        ppo(envs=envs, MODEL=ModifiedMLPPolicy)
+    else:
+        ppo(envs=envs)
 
 if __name__ == "__main__":
     main()

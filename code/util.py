@@ -5,16 +5,9 @@ import numpy as np
 from PIL import Image
 import torch
 from torch.utils.data import Dataset, TensorDataset
-from torchvision import transforms as torchvision_transforms
 from torch import Tensor
 from torch.autograd import Variable
 import logging
-
-# Measured on validation set
-color_means = [0.7274369 , 0.75985962, 0.83737165]
-color_std = [0.01760677,  0.01127113, 0.00469666]
-
-normalize = torchvision_transforms.Normalize(color_means, color_std)
 
 def distance(x1, x2):
     diff = torch.abs(x1 - x2)
@@ -25,6 +18,18 @@ def view_image(frame):
     # Input shape (3, 299, 299) float32
     img = Image.fromarray(np.transpose(frame * 255, [1, 2, 0]).astype(np.uint8))
     img.show()
+
+def write_to_csv(values, keys, filepath):
+    if  not(os.path.isfile(filepath)):
+        with open(filepath, 'w', newline='') as csvfile:
+            filewriter = csv.writer(csvfile)
+            filewriter.writerow(keys)
+            filewriter.writerow(values)
+    else:
+        with open(filepath, 'a', newline='') as csvfile:
+            filewriter = csv.writer(csvfile)
+            filewriter.writerow(values)
+
 
 def ensure_folder(folder):
     path_fragments = os.path.split(folder)
@@ -60,8 +65,7 @@ def ls(path):
     return [p for p in os.listdir(path) if p[0] != '.']
 
 class SingleViewTripletBuilder(object):
-    def __init__(self, video_directory, image_size, cli_args, sample_size=500,
-        transforms=None):
+    def __init__(self, video_directory, image_size, cli_args, sample_size=500):
         self.frame_size = image_size
         self._read_angle_directories(video_directory)
 
@@ -73,9 +77,6 @@ class SingleViewTripletBuilder(object):
         self.video_index = 0
         self.cli_args = cli_args
         self.sample_size = sample_size
-        if transforms is None:
-            transforms = lambda x: x
-        self.transforms = transforms
 
     def _read_angle_directories(self, video_directory):
         self._video_directory = video_directory
@@ -118,7 +119,6 @@ class SingleViewTripletBuilder(object):
             triplets[i, 2, :, :, :] = negative_frame
 
         self.video_index = (self.video_index + 1) % self.video_count
-        triplets = self.transforms(triplets)
         # Second argument is labels. Not used.
         return TensorDataset(triplets, torch.zeros(triplets.size()[0]))
 

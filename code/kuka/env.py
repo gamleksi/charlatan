@@ -5,6 +5,7 @@ import numpy as np
 from pybullet_envs.bullet import KukaGymEnv
 from pybullet_envs.bullet import kuka
 from gym import spaces
+from gym.spaces import prng
 import pybullet_data
 
 
@@ -45,7 +46,7 @@ class KukaPositionControl(kuka.Kuka):
 class KukaPoseEnv(KukaGymEnv):
     # The goal in this env is to get the robot in a given pose.
     def __init__(self, urdfRoot=pybullet_data.getDataPath(), actionRepeat=1,
-            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None):
+            isEnableSelfCollision=True, renders=True, goalReset=True, goal=None, seed=None):
         self._timeStep = 1./240.
         self._urdfRoot = urdfRoot
         self._actionRepeat = actionRepeat
@@ -58,11 +59,15 @@ class KukaPoseEnv(KukaGymEnv):
         self._setup_kuka()
         self._setup_spaces()
         self._goalReset = goalReset
-        self.goal = np.array(goal) if goal is not None else self.getNewGoal()
+        self.goal = np.array(goal) if goal is not None else None
+        self._seed(seed=seed)
         self.joint_history = []
-        self._seed()
-        #self.reset()
+        self.reset()
         self.viewer = None
+    
+    def _seed(self, seed=None):
+        super(KukaPoseEnv, self)._seed(seed)
+        prng.seed(seed)
 
     def _setup_rendering(self):
         if self._renders:
@@ -85,7 +90,7 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _setup_observation_space(self):
          self.observation_space = spaces.Box(
-            low=np.concatenate((self.joint_lower_limit,-self.joint_velocity_limit, self.joint_lower_limit)),
+            low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, self.joint_lower_limit)),
             high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, self.joint_upper_limit)))
 
     def _setup_goal_space(self):
@@ -122,7 +127,7 @@ class KukaPoseEnv(KukaGymEnv):
 
         self.terminated = 0
         # Sample a new random goal pose
-        if self._goalReset:
+        if self._goalReset or self.goal is None:
             self.goal = self.getNewGoal()
         self._observation = self.getExtendedObservation()
 
@@ -130,28 +135,29 @@ class KukaPoseEnv(KukaGymEnv):
 
     def _termination(self):
         too_long = self._envStepCounter > 1e4
-        at_goal = np.linalg.norm(self._motorized_joint_positions() - self.goal, 2) < 1e-3
+        at_goal = np.linalg.norm(self._motorized_joint_positions() - self.goal, 2) < 0.2 #1e-3
         return too_long or at_goal
 
     def _step(self, action):
-        action = action * 500
+        action = action * self._kuka.maxForce
+        reward = 0.
         for i in range(self._actionRepeat):
             self._kuka.applyAction(action)
             bullet.stepSimulation()
             if self._renders:
                 time.sleep(self._timeStep)
-            self._observation = self.getExtendedObservation()
+            reward += self._reward()
             self._envStepCounter += 1
             done = self._termination()
             if done:
+                self._reset()
                 break
-        # self.last_action = action
-        reward = self._reward()
+            self._observation = self.getExtendedObservation()
         return self._observation, reward, done, {}
 
     def _reward(self):
         goal_distance = -np.linalg.norm(np.abs(self._motorized_joint_positions() - self.goal), 2)
-        return goal_distance # - np.linalg.norm(np.abs(self.last_action), 2)
+        return goal_distance # - np.linalg.norm(np.abs(self.last_action / 500), 2)
 
     def getNewGoal(self):
         goal = self.goal_space.sample()
@@ -169,8 +175,37 @@ class KukaPoseEnv(KukaGymEnv):
         # The first item in the joint state is the joint position.
         joint_positions = self._motorized_joint_positions()
         joint_velocities = self._joint_velocities()
-
         return np.concatenate((joint_positions, joint_velocities, self.goal))
+
+class KukaSevenJointsEnv(KukaPoseEnv):
+    def __init__(self, **kwargs):
+        super(KukaSevenJointsEnv, self).__init__(**kwargs)
+
+    def _setup_spaces(self):
+        motor_count = len(self._kuka.motorIndices)
+        self.joint_lower_limit = np.zeros(motor_count)
+        self.joint_upper_limit = np.zeros(motor_count)
+        self.joint_velocity_limit = np.zeros(motor_count)
+        for i, joint_index in enumerate(self._kuka.motorIndices):
+            joint_info = bullet.getJointInfo(self._kuka.kukaUid, joint_index)
+            if joint_info != bullet.JOINT_FIXED:
+                self.joint_lower_limit[i] = joint_info[8]
+                self.joint_upper_limit[i] = joint_info[9]
+                self.joint_velocity_limit[i] = joint_info[11]
+        self.joint_lower_limit = self.joint_lower_limit[0:7]
+        self.joint_upper_limit = self.joint_upper_limit[0:7]
+        self.joint_velocity_limit = self.joint_velocity_limit[0:7]       
+        self._setup_action_space()
+        self._setup_observation_space()
+        self._setup_goal_space()
+
+    def _motorized_joint_positions(self):
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, self._kuka.motorIndices)[:7]
+        return np.array([jointState[0] for jointState in joint_states])
+
+    def _joint_velocities(self):
+        joint_states = bullet.getJointStates(self._kuka.kukaUid, self._kuka.motorIndices)[:7]
+        return np.array([jointState[1] for jointState in joint_states])
 
 from util import _resize_frame
 

@@ -23,7 +23,11 @@ We use a convolutional neural network derived from the Inception architecture as
 
 The network was implemented using the PyTorch deep learning framework. The layers taken from the inception architecture are initialized to values pretrained on the ImageNet dataset. The added layers are randomly initialized using the default initialization scheme of the PyTorch package.
 
+<<<<<<< HEAD
 In our experiments, the output of the network is a 32-dimentional embedding constrained to have an $L_2$ norm of 10. The scaling factor of 10 was motivated by results presented in \cite{constrained-softmax-loss}. We use a margin value of 2.0. The positive frame was sampled from within 10 frames of the anchor frame. The negative frame was sampled from outside a range starting from 30 frames before the anchor frame and ending 30 frames after the anchor frame. The size of a video frame is 299 pixels in width and height.
+=======
+In our experiments, the output of the network is a 32-dimentional embedding constrained to have an $L_2$ norm of 10. The scaling factor of 10 was motivated by results presented in \cite{constrained-softmax-loss}. We use a margin value of 2.0. The positive frame was sampled from within 10 frames of the anchor frame. The negative frame was sampled from outside a range starting from 30 frames before the anchor frame and ending 30 frames after the anchor frame. The size of the video is 299
+>>>>>>> sevenjoints
 
 We use the triplet loss presented in the previous section. At each epoch, we create a dataset of triplets sampled from 5 videos with 200 samples per video. We then run stochastic gradient descent with momentum against the triplet loss over this dataset 5 times after which a new triplet dataset is sampled and the process is repeated. The use a batch size of 64 triplets.
 
