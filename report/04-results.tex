@@ -6,7 +6,7 @@ For comparison after 10 epochs of training the values were 467/1000 with margin 
 {
     \centering
     \includegraphics[width=8cm]{t-sne-trajectory.png}
-    \captionof{figure}{A t-SNE plot of a validation trajectory. Perplexity 30, learning rate 200 and 1000 iterations. The color goes from blue to cyan as a function of the frame indices.}
+    \captionof{figure}{A t-SNE plot of a validation trajectory. t-SNE parameters were perplexity 30, learning rate 200 and 1000 iterations. The color goes from blue to cyan as a function of the frame indices.}
     \label{t-sne}
     \vspace{0.25cm}
 }
@@ -16,7 +16,7 @@ The t-SNE plot in figure \ref{t-sne} of a validation trajectory suggests that th
 {
     \centering
     \includegraphics[width=8cm]{dima.png}
-    \captionof{figure}{Visualization of the $L_2$ distance matrix of the same validation video as in figure \ref{t-sne}. Blue means close and red is far away.}
+    \captionof{figure}{Visualization of the $L_2$ distance matrix of embeddings of the same validation video frames as in figure \ref{t-sne}. Blue means close and red is far away.}
     \label{dima}
     \vspace{0.25cm}
 }
@@ -36,26 +36,28 @@ The t-SNE plot in figure \ref{t-sne} of a validation trajectory suggests that th
     \vspace{0.25cm}
 }
 
-Each row and column in the distance matrix shown in figure \ref{dima} corresponds to a frame of the video. The value is the euclidean distance between the embedding of the frame. I.e. the diagonal is 0 and the matrix is symmetric. This visualization seems to confirm that subsequent frames are close to each other in the embedding space.
+Each row and column in the distance matrix shown in figure \ref{dima} corresponds to the embedding of a frame in the video. The value is the euclidean distance between the embedding of the frame. I.e. the diagonal is 0 and the matrix is symmetric. This visualization seems to confirm that subsequent frames are close to each other in the embedding space.
 
 Comparing figure \ref{t-sne} to figure \ref{early-t-sne} and figure \ref{dima} to figure \ref{early-dima} we can see that early on in training the network has not yet learned a meaningful embedding of the entire joint space of the robot.
 
-First, we studied performance of the PPO algorithm to generate trajectories in a simplified environment where a task is to move the robotic arm into a randomly sampled goal position. Reward of the problem is $L_2$ norm of the distance between a goal position and a robot arm position at a time step. The experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows learning results of the experiment. The PPO algorithm learns to generate better trajectories. However, as the reward at the end of iterations show the agent accomplish to build correct trajectories for only portion of the sampled goal positions.
+First, we studied performance of the PPO algorithm to perform trajectories in a simplified environment where the task is to move the robotic arm into a randomly sampled goal position. The reward on this task is the negative $L_2$ norm of the distance between the goal position and the robot arm position at each time step. The experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows the reward as a function of episodes for this experiment. The PPO algorithm learns to perform better trajectories. However, as the plot shows, even towards the end of training, the robot has still not mastered the art of moving smoothly to the goal pose.
 
 {
     \centering
     \includegraphics[width=10cm]{modified_model_1.png}
-    \captionof{figure}{Learning of the trajectory pose problem}
+    \captionof{figure}{Learning of the goal pose task.}
     \label{trajectory_learning}
     \vspace{0.25cm}
 }
 
-As moving the robot arm to a randomly sampled position proved to be challenging, no remarkable achievements were expected for the imitation learning task. Hence, we experimented the imitation problem with one example video. Figure \ref{imitation} shows the achieved learning. The PPO algorithm produces trajectories that have similar features as the example video. For example, the ending pose is close to the example pose especially if we take into account that viewing angles differ. However, in the middle of the movement the position clearly differs from the example.
+As moving the robot arm to a randomly sampled goal position proved to be challenging, no remarkable achievements were expected for the imitation learning task. Hence, we limited learning to imitate one example video. Figure \ref{imitation} shows a plot of the episode reward as a function of time steps.
+
+Watching the robot imitate (not shown in figures), we determine that the PPO algorithm learns to perform trajectories that vaguely resemble the example video. For example, the ending pose is close to the example pose at the end. However, in the middle of the movement the position clearly differs from the example.
 
 {
     \centering
     \includegraphics[width=10cm]{imitation_1.png}
-    \captionof{figure}{Learning of the Imitation problem}
+    \captionof{figure}{Learning of the imitation task.}
     \label{imitation}
     \vspace{0.25cm}
 }

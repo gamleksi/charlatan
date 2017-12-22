@@ -54,7 +54,7 @@ We used the learned embedding to teach the same simulated robot to imitate itsel
 
 The observation at each time step is a concatenation of the robot joint states, joint velocities, the TCN embedding of an image of itself and the TCN embedding of the next video frame at that timestep.
 
-The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 7 joints of the robotic arm. The 5 joints of the end effector were left out to simplify the learning problem.  
+The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 7 joints of the robotic arm. The 5 joints of the end effector were left out to simplify the learning problem.
 
 The output of the policy network is a 7-dimensional vector. The continuous vector values determine forces of the motors of the seven joints. The action values are between -200 and 200. \textit{Hyperbolic tangent function} is used for the activation function in the fully connected policy network. We experimented different layer structures for the learning problem. As the complexity of the action space is high, the best result was achieved with 3 hidden layers with width 128. The same input value is used for the value network. The network returns recommendation of the state in scalar. The value network shares the same features as the policy network but it has 2 hidden layers.
 
@@ -68,11 +68,11 @@ We trained the imitation agent by running 16 processes of the simulation in para
     \textbf{Parameter}             & \textbf{Value}    \\ \midrule
     $\boldsymbol{\gamma}$        & 0.99                \\
     $\boldsymbol{\tau}$        & 0.95                \\
-    clip $\boldsymbol{\epsilon}$        & 0.2                \\
-    learning rate                       & 0.0007 \\
-    optimizer                        & Adam \\
-    epochs each update        & 4                \\
-    update interval        & 1000 time steps                \\
+    \textbf{clip} $\boldsymbol{\epsilon}$        & 0.2                \\
+    \textbf{learning rate}                       & 0.0007 \\
+    \textbf{optimizer}                        & Adam \\
+    \textbf{epochs each update}        & 4                \\
+    \textbf{update interval}        & 1000 time steps                \\
     \end{tabular}
     \captionof{table}{The parameters we used for proximal policy optimization.}
     \label{ppo-params}

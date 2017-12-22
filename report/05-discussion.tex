@@ -5,7 +5,7 @@ Learning to imitate was more of a challenge. We performed many runs of our exper
 
 Proximal policy optimization is known to not be very sample efficient. One hypothesis might be that we simply did not train our policy and value functions for long enough or that we did not manage to find suitable parameters for the algorithm. We can not entirely rule out that there are no bugs in our code. However, we did try our implementation on more simple environments from the Openai gym \citep{gym}. We also tried the PPO algorithm in our simulation on a different environment where the objective is to move the robotic arm into a randomly sampled goal position. The state in this environent was the goal position, the robot joint states and velocities. In these simpler environments the algorithm appeared to learn adequately.
 
-A model-based reinforcement learning algorithm could probably learn faster to master the task of learning to perform trajectories.
+A model-based reinforcement learning algorithm could probably faster to master the task of performing trajectories.
 
 It would be interesting to run our imitation experiments using more computational resources than we had available. Another interesting experiment would be to try and use videos taken from multiple viewpoints.
 
