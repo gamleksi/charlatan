@@ -116,6 +116,6 @@ register (
 
 register (
     id="KukaImitationTest-v0",
-    entry_point='imitation:ImitationEnv',
+    entry_point='imitation:ImitationHackEnv',
     kwargs=imitation_arguments(renders=False)
 )

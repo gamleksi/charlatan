@@ -30,6 +30,10 @@ class RewardHelper(object):
             frames = frames.cuda()
         return self.tcn(frames).data.cpu().numpy()
 
+    def build_frame_embeddings(self, frames):
+        frames = torch.Tensor(frames)
+        return self.frame_embeddings(frames)
+
     def huber_loss(self, distance):
         return -self.alpha * distance - self.beta * np.sqrt(self.gamma + distance)
 
@@ -38,11 +42,11 @@ class RewardHelper(object):
         assert len(frames.size()) == 4
         frame_embeddings = self.frame_embeddings(frames)
         assert frame_embeddings.shape == (frames.shape[0], 32)
-        video_embeddings = frame_embeddings[0][None]
-        current_embeddings = frame_embeddings[1][None]
+        video_embeddings = frame_embeddings[0:video_frames.shape[0]]
+        current_embeddings = frame_embeddings[video_frames.shape[0]:]
         distance = self._distance(video_embeddings, current_embeddings)
-        assert video_embeddings.shape == (1, 32)
-        assert current_embeddings.shape == (1, 32)
+        assert video_embeddings.shape == (video_frames.shape[0], 32)
+        assert current_embeddings.shape == (current_frames.shape[0], 32)
         assert distance.shape == (video_frames.shape[0],)
         return self.huber_loss(distance)
 

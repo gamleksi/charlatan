@@ -55,8 +55,8 @@ class ImitationEnv(KukaSevenJointsEnv):
         embedding_space = np.zeros(32)
         print(embedding_space.shape)
         self.observation_space = spaces.Box(
-            low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, embedding_space)),
-            high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, embedding_space)))
+            low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, embedding_space, embedding_space)),
+            high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, embedding_space, embedding_space)))
 
     def embedding_observations(self):
         video_frames = self.video[self._frame_counter]
@@ -122,11 +122,36 @@ class ImitationEnv(KukaSevenJointsEnv):
         return np.sum(np.power(embedding1 - embedding2, 2), axis=1)
 
     def getExtendedObservation(self):
+        current_frame = self._get_current_frame()
         next_frame = self.video[self._frame_counter]
         joint_positions = self._motorized_joint_positions()
         joint_velocities = self._joint_velocities()
-        return [np.concatenate((joint_positions, joint_velocities)), np.array([next_frame])]
+        return [np.concatenate((joint_positions, joint_velocities)),  np.array([next_frame]), np.array([current_frame])]
 
+class ImitationHackEnv(ImitationEnv):
+    def __init__(self, **kwargs):
+        super(ImitationHackEnv, self).__init__(**kwargs)
+
+    def _reward(self):
+        return 0
+
+    def reward_frames(self):
+        video_frame = self.video[self._frame_counter]
+        return {'video_frame': video_frame}
+
+    def _step(self, action):
+        action = action * self._kuka.maxForce
+        self._kuka.applyAction(action)
+        bullet.stepSimulation()
+        if self._renders:
+            time.sleep(self._timeStep)
+        reward = self._reward()
+        frames = self.reward_frames()
+        self._envStepCounter += 1
+        done = self._termination()
+        if not(done):
+            self._observation = self.getExtendedObservation()
+        return self._observation, reward, done, frames
 
 if __name__ == "__main__":
     frame_size = (299, 299)
