@@ -1,0 +1,42 @@
+
+Here we present the main methods utilized by our project.
+
+\subsection{Learning an embedding}
+
+The paper \cite{self-supervised-learning} presents a way to learn a distance preserving embedding from video frames onto an n-sphere. The goal is to map frames that are close to each other in the video to vectors that are close to each other on the n-sphere as measured by the $L_2$-norm.
+
+The embedding function is denoted $f(x)$ where $x$ is a frame from a video. We use three types of frames: an anchor frame $x_a$, a positive frame $x_p$ and a negative frame $x_n$. The anchor frame is closer to the positive frame than the negative frame.
+
+Essentially, we want the constraint \[
+    \norm{f(x_a) - f(x_p)}^2_2 + \delta < \norm{f(x_a) - f(x_n)}^2_2
+    \] to hold. $\delta$ is a constant margin parameter.
+
+$f$ is a convolutional neural network. The network is optimized by optimizing a triplet loss function. \[
+    L(x_a, x_p, x_n) = \delta + \norm{f(x_a) - f(x_p)}^2_2 - \\
+    \norm{f(x_a) - f(x_n)}^2_2
+    \]
+
+The triplets are either from a single or multiple viewpoints. When using multiple viewpoints, the anchor frame is a random frame sampled from the video. The positive frame is a frame from the exact same time-step but another viewpoint than the anchor frame. The negative frame is a frame sampled from the same viewpoint as the anchor frame outside a margin range around the anchor frame. This enables the network to learn a viewpoint invariant representation of the scene. \citep{self-supervised-learning}
+
+In the single viewpoint case, all frames are from the same viewpoint. The anchor frame is again a random frame of the video. The positive frame is within a small margin range of the anchor frame. The negative frame is from outside a larger margin range of the anchor frame. \citep{self-supervised-learning}
+
+\subsection{Learning using reinforcement learning}
+
+We learn to imitate using reinfocement learning. The reward function is defined using the embedding shown in the previous section.
+
+We use a huber-style loss: \[
+    R(\boldsymbol{v_t}, \boldsymbol{w_t}) = -\alpha \norm{\boldsymbol{w_t} - \boldsymbol{v_t}}^2_2 -\beta \sqrt{\gamma + \norm{\boldsymbol{w_t} - \boldsymbol{v_t}}^2_2}
+\]
+
+Here $\alpha$ and $\beta$ are scaling parameters. $\gamma$ is a small constant to make the equation well defined for almost zero distances. $\boldsymbol{w_t}$ is an embedding of an image of the robot itself and $\boldsymbol{v_t}$ is an embedding the example video frame at timestep t.
+
+We learn a policy that optimizes the reward function using the proximal policy optimization algorithm (PPO) \citep{ppo}. PPO is a robust, simple, model free policy gradient algorithm. It optimizes a clipped loss function: \[
+    L(\theta) = \hat{E}_t[\min{r_t(\theta)\hat{A}_t, clip(r_t(\theta), 1 - \epsilon, 1 + \epsilon)\hat{A}_t})]
+\]
+$r_t(\theta)$ is the ratio between the probability of the action taken under the current policy and the policy before the previous update. $\hat{A}_t$ is the advantage defined: \[
+    \hat{A}_t = -V(s_t) + r_t + \gamma r_{t+1} + ... + \gamma^{T-t+1}r_{T-1} + \gamma^T V(s_T)
+    \]
+
+The policy and value functions are neural networks. This surrogate reward function can be updated using multiple epochs of minibatch updates, making it well suited for neural networks. \citep{ppo}
+
+

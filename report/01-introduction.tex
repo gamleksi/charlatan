@@ -1,0 +1,17 @@
+
+Learning from others is one of the primary ways in which animals, humans included, learn to perform new tasks. Augmenting robots with such learning capabilities could open up countless new applications for robots. It would be even more beneficial, if such learning could occur from simple videos of humans demonstrating a task. Humans have already mastered countless tasks and collecting videos of humans performing these tasks is very simple to do.
+
+In this project we attempt to replicate results from the paper titled `Time-contrastive networks: self-supervised learning from video` \cite{self-supervised-learning}. In the paper the authors propose a way to teach a robot manipulation tasks using videos of a human performing a task without an explicit supervision signal. Differences in the frames across time are used as a learning signal.
+
+A distance preserving embedding is learned using a triplet loss function. This learned function is used to create a reward function for reinforcement learning of the task. The triplets used for training can be constructed using either video from multiple views or by using video from a single viewpoint.
+
+We attempt to replicate a simplified version of the problem. Namely, we try to teach a simulated robot to imitate itself performing different moves in a video taken from a single viewpoint.
+
+Section \ref{sec:methods} presents the main ideas behind the methods used in the experiments. Section \ref{sec:experiments} presents the experiments we performed. Section \ref{sec:results} presents the results we obtained. Section \ref{sec:discussion} provides some subjective conclusions we draw from our experience building this project and our results.
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "report"
+%%% End:
+
