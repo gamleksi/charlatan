@@ -40,12 +40,12 @@ Each row and column in the distance matrix shown in figure \ref{dima} correspond
 
 Comparing figure \ref{t-sne} to figure \ref{early-t-sne} and figure \ref{dima} to figure \ref{early-dima} we can see that early on in training the network has not yet learned a meaningful embedding of the entire joint space of the robot.
 
-First we studied performance of the PPO algorithm to generate trajectories in a simplified enviroment where a task is to move the robotic arm into a randomly sampled goal position. $L_2$ norm distance of a goal position and an robot arm position at a time step is used as a reward. The experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows learning results of the experiment. The PPO algorithm learns to generate better trajectories. However as the reward at the end of iterations show the agent accomplish to build correct trajectories for only portion of the sampled goal positions.        
+First, we studied performance of the PPO algorithm to generate trajectories in a simplified environment where a task is to move the robotic arm into a randomly sampled goal position. Reward of the problem is $L_2$ norm of the distance between a goal position and a robot arm position at a time step. The experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows learning results of the experiment. The PPO algorithm learns to generate better trajectories. However, as the reward at the end of iterations show the agent accomplish to build correct trajectories for only portion of the sampled goal positions.
 
 {
     \centering
     \includegraphics[width=10cm]{modified_model_1.png}
-    \captionof{figure}{Learning results for moving the robot arm to a goal position}
+    \captionof{figure}{Learning of the trajectory pose problem}
     \label{trajectory_learning}
     \vspace{0.25cm}
 }
@@ -55,7 +55,7 @@ As moving the robot arm to a randomly sampled position proved to be challenging,
 {
     \centering
     \includegraphics[width=10cm]{imitation_1.png}
-    \captionof{figure}{Learning performance of the imitation}
+    \captionof{figure}{Learning of the Imitation problem}
     \label{imitation}
     \vspace{0.25cm}
 }
