@@ -116,12 +116,6 @@ register (
 
 register (
     id="KukaImitationTest-v0",
-    entry_point='imitation:ImitationTestEnv',
+    entry_point='imitation:ImitationEnv',
     kwargs=imitation_arguments(renders=False)
-)
-
-register (
-    id="ImitationWrapperEnv-v0",
-    entry_point='imitation:ImitationWrapperEnv',
-    kwargs={'video_dir': './data/video/angle-1', 'frame_size': (299, 299),'renders': False}       
 )

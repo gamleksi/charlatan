@@ -18,17 +18,12 @@ class ImitationEnv(KukaSevenJointsEnv):
         'yaw': 0,
     }
 
-    def __init__(self, video_dir=None, tcn=None, frame_size=None, transforms=None, num_embedding_observations=1, use_cuda=torch.cuda.is_available(), **kwargs):
+    def __init__(self, video_dir=None, frame_size=None, **kwargs):
         self.video_index = -1
         self._frame_counter = 0
         self._frames_repeated = 0
         self._build_video_paths(video_dir)
-        self.use_cuda = use_cuda
         self.frame_size = frame_size
-        self.num_embedding_observations = num_embedding_observations
-        self.tcn = tcn
-        if transforms is None:
-            transforms = lambda x: x
         self.transforms = transforms
         self.initialize_video_data(0)
         super(ImitationEnv, self).__init__(**kwargs)
@@ -53,14 +48,6 @@ class ImitationEnv(KukaSevenJointsEnv):
     def initialize_video_data(self, video_index):
         self.video = read_video(self.video_paths[video_index], self.frame_size)
         self.video_length = len(self.video)
-
-# No need
-#    def _setup_goal_space(self):
-#        embedding_space = self.embedding_observations()
-#        embedding_space = embedding_space.flatten()
-#        self.goal_space = spaces.Box(
-#            low=embedding_space[0],
-#            high=embedding_space[1])
 
     def _setup_observation_space(self):
         #embedding_space = self.embedding_observations()
@@ -113,52 +100,6 @@ class ImitationEnv(KukaSevenJointsEnv):
         rgb_array = _resize_frame(rgb_array, self.frame_size)
         return rgb_array
 
-    def _reward(self):
-        video_frame = torch.Tensor(self.video[self._frame_counter])
-        current_frame = torch.Tensor(self._get_current_frame())
-        frames = self.transforms(torch.stack([video_frame, current_frame]))
-        embeddings = self.frame_embeddings(frames)
-        video_embedding = embeddings[0, :]
-        frame_embedding = embeddings[1, :]
-        distance = self._distance(video_embedding, frame_embedding)
-        return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
-
-    def _distance(self, embedding1, embedding2):
-        return np.sum(np.power(embedding1 - embedding2, 2))
-
-    def getExtendedObservation(self):
-        embeddings = self.embedding_observations()
-        joint_positions = self._motorized_joint_positions()
-        joint_velocities = self._joint_velocities()
-        return np.concatenate((joint_positions, joint_velocities, embeddings.flatten()))
-
-class ImitationTestEnv(ImitationEnv):
-    def __init__(self, **kwargs):
-        super(ImitationTestEnv, self).__init__(**kwargs)
-    
-    def _step(self, action):
-        observation, reward, done, _ = super(ImitationTestEnv, self)._step(action)
-        return observation, reward, done, self._get_current_frame() 
-
-
-class ImitationWrapperEnv(ImitationEnv):
-    def __init__(self, **kwargs):
-        super(ImitationWrapperEnv, self).__init__(**kwargs)
-
-    def reward_frames(self):
-        video_frame = self.video[self._frame_counter]
-        current_frame = self._get_current_frame()
-        return {'video_frame': video_frame, 'current_frame': current_frame}
-
-    def _reward(self):
-        return 0 
-
-    def getExtendedObservation(self):
-        next_frame = self.video[self._frame_counter]
-        joint_positions = self._motorized_joint_positions()
-        joint_velocities = self._joint_velocities()
-        return [np.concatenate((joint_positions, joint_velocities)), np.array([next_frame])]
-
     def _step(self, action):
         action = action * self._kuka.maxForce
         self._kuka.applyAction(action)
@@ -166,71 +107,25 @@ class ImitationWrapperEnv(ImitationEnv):
         if self._renders:
             time.sleep(self._timeStep)
         reward = self._reward()
-        frames = self.reward_frames()
         self._envStepCounter += 1
         done = self._termination()
         if not(done):
             self._observation = self.getExtendedObservation()
-        return self._observation, reward, done, frames
+        return self._observation, reward, done, None
 
-
-from tcn import define_model
-
-class TCNWrapperEnv(ImitationEnv):
-    def __init__(self, model_path="./trained_models/tcn", model="inception-epoch-2000.pk"):
-        self.use_cuda = torch.cuda.is_available()
-        self.tcn = self.load_model(model_path, model)
-        self.alpha = 0.5
-        self.beta = 0.5
-        self.gamma = 1e-3
-
-    def load_model(self, model_path, model):
-        tcn = define_model(self.use_cuda)
-        model_path = os.path.join(
-            model_path,
-            model
-        )
-        tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
-        if self.use_cuda:
-            tcn = tcn.cuda(0)
-        return tcn
-
-    def frame_embeddings(self, frames):
-        frames = torch.Tensor(frames)
-        for idx in range(frames.shape[0]):
-            frames[idx] = transforms(frames[idx])
-        embeddings = super(TCNWrapperEnv,self).frame_embeddings(frames)
-        return embeddings
-
-    def reward(self, video_frames, current_frames):
-        frames = np.concatenate([video_frames, current_frames], axis=0)
-        assert len(frames.shape) == 4
-        frame_embeddings = self.frame_embeddings(
-            torch.Tensor(frames)
-            )
-        assert frame_embeddings.shape == (frames.shape[0], 32)
-        video_embeddings = frame_embeddings[:video_frames.shape[0]]
-        current_embeddings = frame_embeddings[video_frames.shape[0]:]
-        distance = self._distance(video_embeddings, current_embeddings)
-        assert distance.shape == (video_frames.shape[0],)
-        return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
+    def _reward(self):
+        video_frame = self.video[self._frame_counter]
+        current_frame = self._get_current_frame()
+        return [video_frame, current_frame]
 
     def _distance(self, embedding1, embedding2):
-        assert embedding1.shape == embedding2.shape
         return np.sum(np.power(embedding1 - embedding2, 2), axis=1)
 
-    def reward2(self, video_frames, current_frames):
-        video_embeddings = self.frame_embeddings(
-            torch.Tensor(video_frames)
-            )
-        current_embeddings = self.frame_embeddings(
-            torch.Tensor(current_frames)
-            )
-        assert video_embeddings.shape == (1, 32)
-        assert current_embeddings.shape == (1, 32)
-        distance = self._distance(video_embeddings, current_embeddings)
-        assert distance.shape == (video_embeddings.shape[0],)
-        return (- self.alpha *  distance - self.beta * np.sqrt(self.gamma + distance))
+    def getExtendedObservation(self):
+        next_frame = self.video[self._frame_counter]
+        joint_positions = self._motorized_joint_positions()
+        joint_velocities = self._joint_velocities()
+        return [np.concatenate((joint_positions, joint_velocities)), np.array([next_frame])]
 
 
 if __name__ == "__main__":
@@ -244,7 +139,9 @@ if __name__ == "__main__":
     tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
     transforms = normalize
 
-    env = ImitationEnv(transforms=transforms, renders=True, video_dir='./data/video/angle-1', tcn=tcn, frame_size=frame_size)
+    env = ImitationEnv(transforms=transforms, renders=True, video_dir='./data/validation/angle1', tcn=tcn, frame_size=frame_size)
     done = False
     while not(done):
         observations, reward, done, _ = env.step(env.action_space.sample())
+
+        assert len(x.size()) == 4
