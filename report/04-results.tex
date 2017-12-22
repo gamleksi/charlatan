@@ -11,7 +11,7 @@ For comparison after 10 epochs of training the values were 467/1000 with margin 
     \vspace{0.25cm}
 }
 
-The t-SNE plot of a validation trajectory suggests that the network has learned a meaningful and well-behaved embedding of the video frames. Embeddings of frames that are close to each other in the video are close to each other in the dimensionality reduced regime.
+The t-SNE plot in figure \ref{t-sne} of a validation trajectory suggests that the network has learned a meaningful and well-behaved embedding of the video frames. Embeddings of frames that are close to each other in the video are close to each other in the dimensionality reduced regime.
 
 {
     \centering
@@ -21,12 +21,10 @@ The t-SNE plot of a validation trajectory suggests that the network has learned 
     \vspace{0.25cm}
 }
 
-Each row and column in the distance matrix corresponds to a frame of the video. The value is the euclidean distance between the embedding of the frame. I.e. the diagonal is 0 and the matrix is symmetric. This visualization seems to confirm that subsequent frames are close to each other in the embedding space.
-
 {
     \centering
     \includegraphics[width=8cm]{early_trajectory.png}
-    \captionof{figure}{For comparison, a visualization of a trajectory after 50 epochs of training. Visualized using the same t-SNE parameters as figure \ref{t-sne}.}
+    \captionof{figure}{For comparison, a visualization of a trajectory after 50 epochs of training. Visualized using the same t-SNE parameters and the same video as figure \ref{t-sne}.}
     \label{early-t-sne}
     \vspace{0.25cm}
 }
@@ -37,6 +35,8 @@ Each row and column in the distance matrix corresponds to a frame of the video. 
     \label{early-dima}
     \vspace{0.25cm}
 }
+
+Each row and column in the distance matrix shown in figure \ref{dima} corresponds to a frame of the video. The value is the euclidean distance between the embedding of the frame. I.e. the diagonal is 0 and the matrix is symmetric. This visualization seems to confirm that subsequent frames are close to each other in the embedding space.
 
 Comparing figure \ref{t-sne} to figure \ref{early-t-sne} and figure \ref{dima} to figure \ref{early-dima} we can see that early on in training the network has not yet learned a meaningful embedding of the entire joint space of the robot.
 

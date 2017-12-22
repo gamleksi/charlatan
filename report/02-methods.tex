@@ -16,19 +16,19 @@ $f$ is a convolutional neural network. The network is optimized by optimizing a 
     \norm{f(x_a) - f(x_n)}^2_2
     \]
 
-The triplets are either from a single or multiple viewpoints. When using multiple viewpoints, the anchor frame is a random frame sampled from the video. The positive frame is a frame from the exact same time-step but another viewpoint than the anchor frame. The negative frame is a frame sampled from the same viewpoint as the anchor frame outside a margin range around the anchor frame. This enables the network to learn a viewpoint invariant representation of the scene. \citep{self-supervised-learning}
+The triplets are either from a single or multiple viewpoints. When using multiple viewpoints, the anchor frame is a random frame sampled from the video. The positive frame is a frame from the exact same time-step but another viewpoint than the anchor frame. The negative frame is sampled from the same viewpoint as the anchor frame outside a margin range around the anchor frame. This enables the network to learn a viewpoint invariant representation of the scene. \citep{self-supervised-learning}
 
-In the single viewpoint case, all frames are from the same viewpoint. The anchor frame is again a random frame of the video. The positive frame is within a small margin range of the anchor frame. The negative frame is from outside a larger margin range of the anchor frame. \citep{self-supervised-learning}
+In the single viewpoint case which we implement in our experiements, all frames are from the same viewpoint. The anchor frame is again a random frame of the video. The positive frame is within a small margin range of the anchor frame. The negative frame is from outside a larger margin range of the anchor frame. \citep{self-supervised-learning}
 
 \subsection{Learning using reinforcement learning}
 
-We learn to imitate using reinfocement learning. The reward function is defined using the embedding shown in the previous section.
+We learn to imitate using reinfocement learning. The reward function is defined using the embedding function presented in the previous section.
 
 We use a huber-style loss: \[
     R(\boldsymbol{v_t}, \boldsymbol{w_t}) = -\alpha \norm{\boldsymbol{w_t} - \boldsymbol{v_t}}^2_2 -\beta \sqrt{\gamma + \norm{\boldsymbol{w_t} - \boldsymbol{v_t}}^2_2}
 \]
 
-Here $\alpha$ and $\beta$ are scaling parameters. $\gamma$ is a small constant to make the equation well defined for almost zero distances. $\boldsymbol{w_t}$ is an embedding of an image of the robot itself and $\boldsymbol{v_t}$ is an embedding the example video frame at timestep t.
+Here $\alpha$ and $\beta$ are scaling parameters. $\gamma$ is a small constant to make the equation well defined for almost zero distances. $\boldsymbol{w_t}$ is an embedding of an image of the robot itself and $\boldsymbol{v_t}$ is an embedding of the example video frame at timestep t.
 
 We learn a policy that optimizes the reward function using the proximal policy optimization algorithm (PPO) \citep{ppo}. PPO is a robust, simple, model free policy gradient algorithm. It optimizes a clipped loss function: \[
     L(\theta) = \hat{E}_t[\min{r_t(\theta)\hat{A}_t, clip(r_t(\theta), 1 - \epsilon, 1 + \epsilon)\hat{A}_t})]
