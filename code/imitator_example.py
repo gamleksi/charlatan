@@ -13,7 +13,7 @@ class RewardHelper(object):
         self.beta = 0.5
         self.gamma = 1e-3
         self.use_cuda = torch.cuda.is_available()
-        self.tcn = self.load_model('./trained_models/tcn/', 'inception-epoch-2000.pk')
+        self.tcn = self.load_model('./trained_models/tcn/', 'inception2-epoch-100.pk')
 
     def load_model(self, model_path, model):
         tcn = define_model(self.use_cuda)
