@@ -40,7 +40,7 @@ Each row and column in the distance matrix shown in figure \ref{dima} correspond
 
 Comparing figure \ref{t-sne} to figure \ref{early-t-sne} and figure \ref{dima} to figure \ref{early-dima} we can see that early on in training the network has not yet learned a meaningful embedding of the entire joint space of the robot.
 
-First, we studied performance of the PPO algorithm to perform trajectories in a simplified environment where the task is to move the robotic arm into a randomly sampled goal position. The reward on this task is the negative $L_2$ norm of the distance between the goal position and the robot arm position at each time step. The experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows the reward as a function of episodes for this experiment. The PPO algorithm learns to perform better trajectories. However, as the plot shows, even towards the end of training, the robot has still not mastered the art of moving smoothly to the goal pose.
+The goal pose experiment indicates that the complexity of the problem is high. Figure \ref{trajectory_learning} shows the reward as a function of episodes for this experiment. The PPO algorithm learns to perform better trajectories. However, as the plot shows, even towards the end of training, the robot has still not mastered the art of moving smoothly to the goal pose.
 
 {
     \centering

@@ -50,13 +50,13 @@ We use a learning rate schedule such that we start with a learning rate of 0.1. 
 
 \subsection{Learning to imitate}
 
-We used the learned embedding to teach the same simulated robot to imitate itself in a video performing different trajectories. We use the proximal policy optimization algorithm to optimize the loss function.
+We used the learned embedding to teach the same simulated robot to imitate itself in a video performing different trajectories. We use the proximal policy optimization algorithm to optimize the loss function. We used under the MIT license the open source PPO implementation provided by the github user ikostrikov (\url{https://github.com/ikostrikov/pytorch-a2c-ppo-acktr}).       
 
 The observation at each time step is a concatenation of the robot joint states, joint velocities, the TCN embedding of an image of itself and the TCN embedding of the next video frame at that timestep.
 
 The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 7 joints of the robotic arm. The 5 joints of the end effector were left out to simplify the learning problem.
 
-The output of the policy network is a 7-dimensional vector. The continuous vector values determine forces of the motors of the seven joints. The action values are between -200 and 200. \textit{Hyperbolic tangent function} is used for the activation function in the fully connected policy network. We experimented different layer structures for the learning problem. As the complexity of the action space is high, the best result was achieved with 3 hidden layers with width 128. The same input value is used for the value network. The network returns recommendation of the state in scalar. The value network shares the same features as the policy network but it has 2 hidden layers.
+The output of the policy network is a 7-dimensional vector of which values determine the mean for sampling actions from a \textit{Gaussian} distribution. The action values determine forces of the motors of the seven joints. The action values are between -200 and 200. \textit{Hyperbolic tangent function} is used for the activation function in the fully connected policy network. We experimented different layer structures for the learning problem. As the complexity of the action space is high, the best result was achieved with 3 hidden layers with width 128. The same input value is used for the value network. The network returns recommendation of the state in scalar. The value network shares the same features as the policy network but it has 2 hidden layers.
 
 We trained the imitation agent by running 16 processes of the simulation in parallel. We evaluate the policy network to get an action for each process at each time step. We use a rollout storage to sample updates from. An update is done on the policy and value networks every 1000 time steps by sampling minibatches from the rollout storage. All the parameters we used are summarized in table \ref{ppo-params}.
 
@@ -77,3 +77,7 @@ We trained the imitation agent by running 16 processes of the simulation in para
     \captionof{table}{The parameters we used for proximal policy optimization.}
     \label{ppo-params}
 }
+
+\subsection{Goal pose expperiment}
+
+Before experimenting the imitation problem, we studied how suitable the PPO algorithm is for this kind of environments by a simplified problem. In the goal pose experiment the object of the PPO algorithm is to move a robot arm to randomly sampled poses that is initialized for each episode. Better results are achieved with shorter trajectories to the goal pose. The same network structures as in the imitation problem are utilized. The observation at each time step includes a joint position, joint velocities, and the goal pose. The reward on this task is the negative $L_2$ norm of the distance between the goal position and the robot arm position at each time step.
