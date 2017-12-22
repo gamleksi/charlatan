@@ -13,7 +13,7 @@ We created 200 videos of a robotic arm performing trajectories in a simulated en
     \label{example-snap}
     \centering
     \includegraphics[width=8cm]{example_snap.png}
-    \captionof{figure}{Two example frames from a recorded trajectory.}
+    \captionof{figure}{Two example frames from a recorded trajectory. The left frame is the goal position and the right frame is the start position.}
     \vspace{0.5cm}
 }
 
@@ -28,6 +28,26 @@ In our experiments, the output of the network is a 32-dimentional embedding cons
 We use the triplet loss presented in the previous section. At each epoch, we create a dataset of triplets sampled from 5 videos with 200 samples per video. We then run stochastic gradient descent with momentum against the triplet loss over this dataset 5 times after which a new triplet dataset is sampled and the process is repeated. The use a batch size of 64 triplets.
 
 We use a learning rate schedule such that we start with a learning rate of 0.1. Each 500 epochs we decrease the learning rate to 1/10th of the previous rate until we reach 0.0001 inclusive.
+
+% Please add the following required packages to your document preamble:
+{
+    \vspace{0.5cm}
+    \centering
+    \label{cnn-params}
+    \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Parameter}             & \textbf{Value}    \\ \midrule
+    \textbf{minibatch size}        & 64                \\
+    \textbf{learning rate}         & 0.1-0.0001        \\
+    $\boldsymbol{\delta}$                & 2.0               \\
+    \textbf{positive frame margin} & 10                \\
+    \textbf{negative frame margin} & 30                \\
+    \textbf{optimizer}             & SGD with momentum \\
+    \textbf{momentum}              & 0.9               \\
+    \textbf{embedding dimensions}  & 32
+    \end{tabular}
+    \captionof{table}{The parameters we used for training our embedding function.}
+}
 
 \subsection{Learning to imitate}
 
