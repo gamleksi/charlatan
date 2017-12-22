@@ -76,7 +76,6 @@ def main():
         observation, reward, done, _ = env.step(env.action_space.sample())
         video_frames = reward[0]
         current_frames = reward[1]
-        import ipdb; ipdb.set_trace()
         reward = reward_helper.reward2(video_frames[None], current_frames[None])
         print('reward 1', reward)
         reward = reward_helper.reward(video_frames[None], current_frames[None])

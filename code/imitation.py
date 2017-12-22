@@ -8,7 +8,6 @@ from kuka.env import KukaSevenJointsEnv # KukaPoseEnv
 from util import read_video, ls, _resize_frame
 from PIL import Image, ImageOps
 from gym import spaces
-from util import normalize as transforms
 from tcn import define_model
 
 class ImitationEnv(KukaSevenJointsEnv):
@@ -24,7 +23,6 @@ class ImitationEnv(KukaSevenJointsEnv):
         self._frames_repeated = 0
         self._build_video_paths(video_dir)
         self.frame_size = frame_size
-        self.transforms = transforms
         self.initialize_video_data(0)
         super(ImitationEnv, self).__init__(**kwargs)
         self.alpha = 0.5
@@ -50,19 +48,12 @@ class ImitationEnv(KukaSevenJointsEnv):
         self.video_length = len(self.video)
 
     def _setup_observation_space(self):
-        #embedding_space = self.embedding_observations()
-        # embedding_space = embedding_space.flatten()
         embedding_space = np.zeros(32)
         print(embedding_space.shape)
         self.observation_space = spaces.Box(
             low=np.concatenate((self.joint_lower_limit, -self.joint_velocity_limit, embedding_space)),
             high=np.concatenate((self.joint_upper_limit, self.joint_velocity_limit, embedding_space)))
 
-    def embedding_observations(self):
-        video_frames = self.video[self._frame_counter]
-        video_frames = self.transforms(torch.Tensor(video_frames))
-        embeddings = self.frame_embeddings([video_frames])
-        return embeddings
 
     def frame_embeddings(self, frames):
         tensors = Variable(frames, volatile=True)
@@ -137,9 +128,8 @@ if __name__ == "__main__":
         "inception-epoch-2000.pk"
     )
     tcn.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
-    transforms = normalize
 
-    env = ImitationEnv(transforms=transforms, renders=True, video_dir='./data/validation/angle1', tcn=tcn, frame_size=frame_size)
+    env = ImitationEnv(renders=True, video_dir='./data/validation/angle1', tcn=tcn, frame_size=frame_size)
     done = False
     while not(done):
         observations, reward, done, _ = env.step(env.action_space.sample())

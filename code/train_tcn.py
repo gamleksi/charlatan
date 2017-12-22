@@ -8,9 +8,7 @@ from torch.optim import lr_scheduler
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.data.sampler import RandomSampler
-from torchvision import transforms
-from util import (VideoTripletDataset, SingleViewTripletBuilder, distance, Logger, ensure_folder,
-            normalize)
+from util import (VideoTripletDataset, SingleViewTripletBuilder, distance, Logger, ensure_folder)
 from tcn import define_model, PosNet
 
 IMAGE_SIZE = (299, 299)
@@ -19,7 +17,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--start-epoch', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=10000)
-    parser.add_argument('--save-every', type=int, default=1000)
+    parser.add_argument('--save-every', type=int, default=25)
     parser.add_argument('--model-folder', type=str, default='./trained_models/tcn/')
     parser.add_argument('--load-model', type=str, required=False)
     parser.add_argument('--train-directory', type=str, default='./data/train/')
@@ -39,8 +37,7 @@ def batch_size(epoch, max_size):
     exponent = epoch // 100
     return min(max(2 ** (exponent), 2), max_size)
 
-validation_builder = SingleViewTripletBuilder(arguments.validation_directory, IMAGE_SIZE, arguments,
-    transforms=normalize, sample_size=100)
+validation_builder = SingleViewTripletBuilder(arguments.validation_directory, IMAGE_SIZE, arguments, sample_size=100)
 validation_set = [validation_builder.build_set() for i in range(10)]
 validation_set = ConcatDataset(validation_set)
 del validation_builder
@@ -119,11 +116,7 @@ def main():
 
     tcn = create_model(use_cuda)
 
-    training_transforms = normalize
-
-    triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments,
-        transforms=training_transforms,
-        sample_size=200)
+    triplet_builder = SingleViewTripletBuilder(arguments.train_directory, IMAGE_SIZE, arguments, sample_size=200)
 
     queue = multiprocessing.Queue(1)
     dataset_builder_process = multiprocessing.Process(target=build_set, args=(queue, triplet_builder, logger), daemon=True)
@@ -132,7 +125,7 @@ def main():
     optimizer = optim.SGD(tcn.parameters(), lr=arguments.lr_start, momentum=0.9)
     # This will diminish the learning rate at the milestones.
     # 0.1, 0.01, 0.001
-    learning_rate_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[500, 1000], gamma=0.1)
+    learning_rate_scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[25, 50, 100], gamma=0.1)
 
     ITERATE_OVER_TRIPLETS = 5
 

@@ -6,7 +6,7 @@ import argparse
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import RandomSampler
-from util import read_video, normalize
+from util import read_video
 from torchvision import transforms
 from tcn import define_model
 from sklearn import manifold
