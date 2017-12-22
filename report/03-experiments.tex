@@ -78,6 +78,6 @@ We trained the imitation agent by running 16 processes of the simulation in para
     \label{ppo-params}
 }
 
-\subsection{Goal pose expperiment}
+\subsection{Goal pose experiment}
 
-Before experimenting the imitation problem, we studied how suitable the PPO algorithm is for this kind of environments by a simplified problem. In the goal pose experiment the object of the PPO algorithm is to move a robot arm to randomly sampled poses that is initialized for each episode. Better results are achieved with shorter trajectories to the goal pose. The same network structures as in the imitation problem are utilized. The observation at each time step includes a joint position, joint velocities, and the goal pose. The reward on this task is the negative $L_2$ norm of the distance between the goal position and the robot arm position at each time step.
+Before experimenting the imitation problem, we studied how suitable the PPO algorithm is for this kind of environment. In the goal pose experiment the objective is to move a robot arm to randomly sampled goal pose. Better results are achieved with shorter trajectories to the goal pose. The same network structures as in the imitation problem are utilized. The observation at each time step includes a joint position, joint velocities, and the goal pose. The reward in this task is the negative $L_2$ norm of the distance between the goal position and the robot arm position at each time step minus the $L_2$ norm of the previous action.
