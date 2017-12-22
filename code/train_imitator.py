@@ -9,7 +9,6 @@ sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'pytor
 from pytorch_a2c_ppo_acktr.main import main as ppo
 from pytorch_a2c_ppo_acktr.arguments import get_args
 from baselines import bench
-from util import normalize
 
 def make_env(env_id, seed, rank, log_dir):
     def _thunk():
