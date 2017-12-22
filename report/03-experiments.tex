@@ -52,11 +52,11 @@ We use a learning rate schedule such that we start with a learning rate of 0.1. 
 
 We used the learned embedding to teach the same simulated robot to imitate itself in a video performing different trajectories. We use the proximal policy optimization algorithm to optimize the loss function.
 
-The observation at each time step is a concatenation of the robot joint states, joint velocities, the TCN embedding of an image of itself and the TCN embedding of the video frame at that timestep.
+The observation at each time step is a concatenation of the robot joint states, joint velocities, the TCN embedding of an image of itself and the TCN embedding of the next video frame at that timestep.
 
-The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 12 joints of the robotic arm.
+The reward is calculated using the huber loss presented in section \ref{sec:methods} using the embedding of an image of the robot and the embedding of an example video frame. Actions are torques applied to the 7 joints of the robotic arm. The 5 joints of the end effector were left out to simplify the learning problem.  
 
-\#TODO policy and value network specs.
+The output of the policy network is a 7-dimensional vector. The continuous vector values determine forces of the motors and the values are between -200 and 200. \textit{Hyperbolic tangent function} is used an the activation function for the hidden units in the fully connected policy network. We experimented different layer structures for the learning problem. As the complexity of the action space is high, the best result was achieved with 3 hidden layers with width 128. The same input value is used for the value network. The network returns recommendation of the state in scalar. The value network share the same features as the policy network but it has 2 hidden layers.
 
 We trained the imitation agent by running 16 processes of the simulation in parallel. We evaluate the policy network to get an action for each process at each time step. We use a rollout storage to sample updates from. An update is done on the policy and value networks every 1000 time steps by sampling minibatches from the rollout storage. All the parameters we used are summarized in table \ref{ppo-params}.
 
@@ -69,6 +69,8 @@ We trained the imitation agent by running 16 processes of the simulation in para
     $\boldsymbol{\gamma}$        & 0.99                \\
     $\boldsymbol{\tau}$        & 0.95                \\
     clip $\boldsymbol{\epsilon}$        & 0.2                \\
+    learning rate                       & 0.0007 \\
+    optimizer                        & Adam \\
     epochs each update        & 4                \\
     update interval        & 1000 time steps                \\
     \end{tabular}
